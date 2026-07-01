@@ -1,0 +1,3 @@
+(library
+ (name mcp_core)
+ (libraries yojson unix))
