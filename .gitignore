@@ -1,0 +1,14 @@
+_build/
+logs/
+*.vo
+*.vos
+*.vok
+*.glob
+*.aux
+.lia.cache
+.nia.cache
+*.log
+__pycache__/
+*.pyc
+scratch/
+data/generated/
