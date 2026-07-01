@@ -57,6 +57,12 @@ let check_tool : M.tool =
               Proc.run ~timeout_s:(Lazy.force compile_timeout) ~cwd:dir
                 [| "rocq"; "compile"; "proof.v" |]
             in
+            (* harness contract: candidate.v = latest content that fully checked *)
+            if r.exit_code = 0 then begin
+              let oc = open_out (Filename.concat dir "candidate.v") in
+              output_string oc content;
+              close_out oc
+            end;
             let body =
               Printf.sprintf "exit code: %d%s\n%s" r.exit_code
                 (if r.timed_out then " (compilation TIMED OUT and was killed)" else "")

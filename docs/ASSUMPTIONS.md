@@ -49,9 +49,22 @@ stdlib-only, seed 42); ≥ 2 reps for kept changes. Rationale: keeps a full dev6
 eval under ~1 h so several ablation cycles fit per day, while leaving the final
 day for the frozen run + report.
 
-## A7 — Switch amendments
+## A7 — Switch amendments (and a Rocq downgrade)
 The dedicated switch lacked `yojson` (JSON for the OCaml server) and the libraries
 ~10% of dataset files import. Installed and pinned: yojson 3.0.0,
-coq-coquelicot, coq-mathcomp-ssreflect (versions in repro/opam-packages.txt).
-Installing them is reversible and required for dataset coverage; recorded here and
-in repro/.
+coq-coquelicot 3.4.4, (rocq-)mathcomp-ssreflect 2.5.0 (repos `rocq-released` +
+`coq-released` added, scoped to this switch). Side effect: the opam solver
+**downgraded Rocq 9.2.0 → 9.1.1** (the coq-* compat shims Coquelicot needs cap at
+9.1.1). Accepted: verified datasets still compile identically and the project
+builds; Coquelicot coverage is worth more than the newer point release. The
+experiment substrate is therefore **Rocq 9.1.1 / OCaml 5.3.0**, pinned in
+repro/opam-packages.txt.
+
+## A8 — Proof-region discipline (anti-gaming)
+The agent may only append content AFTER the shipped theorem statement; the file
+prefix (imports + preamble + statement) must match the dataset file exactly
+(whitespace-normalized). Rationale: inserting imports/scopes/notations before the
+statement can silently change what the statement means (e.g. `Open Scope`
+re-parsing `+`), which is unauditable at scale. Helper facts remain expressible
+via `assert`/`have` inside the proof. Uniform across all configs, so it cannot
+bias comparisons.
