@@ -32,25 +32,47 @@ Building the naive baseline (full `rocq compile` per tool call) next.
 - ≥ 2 repetitions per config for mean/variance on kept changes.
 
 ## Done
-- [x] Environment scouted (switch, Rocq 9.2 OCaml libs, datasets, hardware, policy endpoint)
-- [x] Branch `agent-tooling` created; scaffold committed
-- [x] Probe: miniF2F .v compiles under Rocq 9.2 (deprecation warning only, exit 0)
+- [x] Environment scouted; branch `agent-tooling`; scaffold committed
+- [x] OCaml MCP server framework (JSON-RPC stdio + JSONL instrumentation) + naive
+  baseline server (`check` = full `rocq compile` per call) — smoke-tested
+- [x] claude CLI headless contract probed empirically (flags, token accounting,
+  silent-permission-denial gotcha → harness asserts `permission_denials == []`;
+  custom `--system-prompt` cuts ~70k cached tokens/turn ≈ 10× cost)
+- [x] Dataset manifests: dev60 / dev150 (disjoint, stratified stdlib-only, seed
+  42), smoke5, minif2f_valid; mechanical held-out guard on miniF2F test
+  (FINAL_UNLOCK file + ROCQ_FINAL_EVAL=1, unlock logged) — verified locked
+- [x] Correctness gate (layered anti-gaming): locked prefix, forbidden-token scan
+  on comment-stripped agent region, fresh recompile, Print Assumptions audit.
+  Unit-tested incl. tamper cases
+- [x] Eval harness + report + monitor; smoke run: 4/5 easy solved, $0.018/attempt
 
 ## In progress
-- [ ] Naive baseline: OCaml MCP server exposing a single `check` tool = full file
-  `rocq compile` per call; JSONL instrumentation; eval harness
-- [ ] coq-coquelicot + mathcomp install (background)
+- [ ] **baseline_dev60_r1**: naive baseline on dev60 × 2 reps (120 attempts,
+  parallel=4) — running in background
+- [ ] rocq-runtime 9.1 OCaml API mapping (for the in-process session server)
+
+## Pre-registered bottleneck hypotheses (to test in profiling step)
+- H1: prover time = flat re-`Require` overhead per call + runaway tactics hitting
+  the 60 s compile timeout (smoke: call p95 = 60.6 s = timeout ceiling)
+- H2: token cost = agent re-sends the full file every call; input tokens grow
+  ~quadratically over a session
+- H3: failures = blind flailing; agent can't see intermediate goal state after a
+  partial failure, so it rewrites whole proofs
 
 ## Metrics vs baseline
-_None yet — baseline being built._
+Baseline being measured now (see logs/runs/baseline_dev60_r1; monitor:
+`python3 harness/monitor.py baseline_dev60_r1 --once`).
+Smoke (5 easy, 1 rep): 4/5 solved, mean $0.018, mean 7 tool calls, prover 38 s
+of 74 s wall (dominated by one timeout-looping attempt).
 
 ## Decisions / assumptions since last check-in
-See `docs/ASSUMPTIONS.md` (A1–A7): policy = claude CLI headless; tool layer = OCaml
-MCP server on rocq-runtime libs; dev sampling stratified by dataset difficulty
-labels; budgets above.
+See `docs/ASSUMPTIONS.md` A1–A8. Notable: **Rocq downgraded 9.2.0 → 9.1.1** by
+the Coquelicot install (compat shims cap at 9.1.1) — accepted, recorded, pinned;
+policy budget clarified to ≤30 CLI turns (≈14 tool round-trips) per attempt.
 
 ## Failures / recoveries
-_None yet._
+- coq-coquelicot/mathcomp not in default opam repo → added rocq-released +
+  coq-released repos (switch-scoped); solver then downgraded Rocq (see above).
 
 ## Needs your input
 _(empty — nothing blocking)_
