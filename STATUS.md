@@ -17,7 +17,14 @@ Full A/B in docs/REPORT.md; decision + numbers in DESIGN.md. `session_try`
 | session | .475 / .325 / .325 | +30 % med & hard, −80 % out-tokens | **KEPT** |
 | session_try | .65 / .375 / .375 | easy +37 %, med/hard +15 %, cost flat | **KEPT** |
 | session_try_compact | .625 / .35 / .35 | −2.5 pp everywhere, tokens_in +11 % | REVERTED |
-| session_try_search | running | targets hallucinated lemma names (unknown_ref) | — |
+| session_try_search | .60 / .35 / .40 | noise-level pass@1 (−/−/+), cost −5 %; heavy adoption (324 calls) but zero rescue: 15 % solve with search vs 81 % without (selection) | REVERTED |
+| session_try_hints | queued | error payloads get Lean-ism→Rocq rewrites (targets the 1151× `[ltac_use_default]` parse-error class + Lean tactic names) | — |
+
+**Now running:** `session_try_dev150` — confirmation of the winner on the
+disjoint dev150 set (300 attempts, ~3 h); hints A/B auto-starts after.
+**Today's remaining plan:** hints keep/revert → miniF2F-valid confirmation run
+(overnight if needed) → scalability sweep tomorrow → freeze + held-out + report
+day 4-5.
 
 Live view: `logs/dashboard.html` (auto-refreshing; regenerate with
 `python3 harness/dashboard.py --watch`). Task brief: `docs/TASK.md`.
