@@ -103,11 +103,22 @@ def split_at_prefix(candidate: str, prefix: str):
     return ci
 
 
+# Standard ambient environment (A11): the scope-neutral tactic modules are
+# preloaded everywhere (session, baseline, gate) so closer availability does
+# not depend on a file's shipped import list. Verified statement-invariant:
+# these modules define no notations/scopes. Monotone for old candidates.
+ENV_INJECT = [
+    "-ri", "Stdlib.micromega.Lia",
+    "-ri", "Stdlib.micromega.Lra",
+    "-ri", "Stdlib.micromega.Psatz",
+]
+
+
 def _run_rocq(vfile: Path, timeout_s: float) -> tuple[int, str, float]:
     t0 = time.monotonic()
     try:
         p = subprocess.run(
-            ["rocq", "compile", vfile.name],
+            ["rocq", "compile", *ENV_INJECT, vfile.name],
             cwd=vfile.parent,
             env=prover_env(),
             capture_output=True,
@@ -132,8 +143,8 @@ def parse_assumptions(output: str):
     for line in output[idx_axioms + len("Axioms:"):].splitlines():
         if line.startswith("***"):
             unsafe = True
-        m = re.match(r"^(\S+)\s*:", line)
-        if m:
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_.']*)\s*:", line)
+        if m and m.group(1) not in ("Warning", "Error", "File"):
             axioms.append(m.group(1))
     return axioms, unsafe
 

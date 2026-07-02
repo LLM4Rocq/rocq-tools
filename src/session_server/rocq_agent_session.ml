@@ -70,9 +70,44 @@ let get_session () =
       let base =
         match List.rev steps with s :: _ -> s.D.post | [] -> st0
       in
+      (* environment v2 (A11): preload scope-neutral tactic modules AFTER the
+         prefix (statement already parsed under shipped imports, so meaning
+         cannot shift); the gate compiles candidates with the same modules
+         injected, so in-session success and gate success stay aligned. *)
+      let base =
+        if Sys.getenv_opt "ROCQ_ENV_V2" = Some "1" then begin
+          let steps2, stop2 =
+            D.exec_text ~timeout_s:60. ~qed_timeout_s:60. base
+              "From Stdlib Require Import Lia Lra Psatz."
+          in
+          match stop2 with
+          | D.Done -> (
+              match List.rev steps2 with s :: _ -> s.D.post | [] -> base)
+          | _ -> base (* preload failure: proceed with shipped env *)
+        end
+        else base
+      in
       let s = { committed = []; base; complete = false; prefix } in
       session := Some s;
       s
+
+let env_v2 = lazy (Sys.getenv_opt "ROCQ_ENV_V2" = Some "1")
+
+let require_re = Str.regexp "\\(^\\|[^A-Za-z0-9_']\\)\\(Require\\|From\\)\\b"
+
+(* the gate forbids Require in the agent region; executing it in-session and
+   letting the gate reject later is a trap — refuse it up front instead *)
+let reject_require text =
+  Lazy.force env_v2
+  && (try
+        ignore (Str.search_forward require_re text 0);
+        true
+      with Not_found -> false)
+
+let require_reject_msg =
+  "Require is not allowed: the file's imports are fixed, and the standard \
+   tactic modules (Lia, Lra, Psatz — giving lia, nia, lra, nra, psatz) are \
+   ALREADY loaded. Work within the loaded libraries."
 
 (* UTF-8-safe truncation: never split a multi-byte codepoint (agents send
    text like ⟨?_⟩; a raw String.sub produced invalid bytes in logs). *)
@@ -340,6 +375,9 @@ let step_tool : M.tool =
             "The proof is already COMPLETE. Reply DONE — do not call more tools."
         else
           match JU.member "text" args with
+          | `String text when reject_require text ->
+              M.text_result ~is_error:true require_reject_msg
+                ~log:[ ("stop", `String "require_rejected") ]
           | `String text ->
               let st = cur_state s in
               let t0 = Unix.gettimeofday () in
@@ -506,6 +544,8 @@ let try_tool : M.tool =
             let outcomes =
               List.map
                 (fun cand ->
+                  if reject_require cand then (cand, Partial (0, require_reject_msg))
+                  else
                   let steps, stop =
                     D.exec_text ~timeout_s:(Lazy.force try_timeout)
                       ~qed_timeout_s:(Lazy.force qed_timeout) st cand

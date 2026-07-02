@@ -53,9 +53,15 @@ let check_tool : M.tool =
             let oc = open_out path in
             output_string oc content;
             close_out oc;
+            let argv =
+              if Sys.getenv_opt "ROCQ_ENV_V2" = Some "1" then
+                [| "rocq"; "compile"; "-ri"; "Stdlib.micromega.Lia";
+                   "-ri"; "Stdlib.micromega.Lra"; "-ri"; "Stdlib.micromega.Psatz";
+                   "proof.v" |]
+              else [| "rocq"; "compile"; "proof.v" |]
+            in
             let r =
-              Proc.run ~timeout_s:(Lazy.force compile_timeout) ~cwd:dir
-                [| "rocq"; "compile"; "proof.v" |]
+              Proc.run ~timeout_s:(Lazy.force compile_timeout) ~cwd:dir argv
             in
             (* harness contract: candidate.v = latest content that fully checked *)
             if r.exit_code = 0 then begin
