@@ -95,6 +95,54 @@ let goal_digest (st : Vernacstate.t) =
           let s = Str.global_replace (Str.regexp "  +") " " s in
           (List.length goals, s))
 
+let one_line s =
+  Str.global_replace (Str.regexp "  +") " "
+    (String.concat " " (String.split_on_char '\n' s))
+
+(* Structured view of the FIRST goal: hypotheses as "id : type" strings
+   (oldest first) + one-line conclusion; plus conclusions of the other goals. *)
+let first_goal_view (st : Vernacstate.t) :
+    (string list * string * string list) option =
+  match st.Vernacstate.interp.Vernacstate.Interp.lemmas with
+  | None -> None
+  | Some stk -> (
+      Vernacstate.unfreeze_full_state st;
+      let p = Declare.Proof.get (Vernacstate.LemmaStack.get_top stk) in
+      let { Proof.sigma; goals; _ } = Proof.data p in
+      match goals with
+      | [] -> Some ([], "", [])
+      | g :: rest ->
+          let info = Evd.find_undefined sigma g in
+          let env = Evd.evar_filtered_env (Global.env ()) info in
+          let hyps =
+            List.rev_map
+              (fun decl ->
+                let id = Context.Named.Declaration.get_id decl in
+                let ty = Context.Named.Declaration.get_type decl in
+                Names.Id.to_string id ^ " : "
+                ^ one_line
+                    (Pp.string_of_ppcmds (Printer.pr_econstr_env env sigma ty)))
+              (Evd.evar_context info)
+          in
+          let concl =
+            one_line
+              (Pp.string_of_ppcmds
+                 (Printer.pr_econstr_env env sigma (Evd.evar_concl info)))
+          in
+          let others =
+            List.map
+              (fun g ->
+                match Evd.find_undefined sigma g with
+                | info ->
+                    let env = Evd.evar_filtered_env (Global.env ()) info in
+                    one_line
+                      (Pp.string_of_ppcmds
+                         (Printer.pr_econstr_env env sigma (Evd.evar_concl info)))
+                | exception _ -> "?")
+              rest
+          in
+          Some (hyps, concl, others))
+
 type sentence_result =
   | Ok_st of Vernacstate.t * string list (* new state, messages *)
   | Err of { msg : string; loc : (int * int) option; messages : string list }

@@ -74,10 +74,49 @@ let get_session () =
       session := Some s;
       s
 
-let goals_block st =
+let truncate n s = if String.length s <= n then s else String.sub s 0 n ^ "…"
+
+let render_compact =
+  lazy (match Sys.getenv_opt "ROCQ_RENDER" with Some "compact" -> true | _ -> false)
+
+let goals_block_full st =
   let n = D.n_goals st in
   if not (D.proof_open st) then "(no proof open)"
   else Printf.sprintf "goals: %d\n%s" n (D.render_goals st)
+
+(* Compact: first-goal conclusion + hypothesis DELTA vs [prev] (or all hyps
+   when prev is absent), other goals as one-line conclusions. The `state` tool
+   always renders full, so elided detail stays one call away. *)
+let goals_block_compact ?prev st =
+  match D.first_goal_view st with
+  | None -> "(no proof open)"
+  | Some ([], "", []) -> "goals: 0 — no goals left; finish with `Qed.`"
+  | Some (hyps, concl, others) ->
+      let b = Buffer.create 256 in
+      Printf.bprintf b "goals: %d\n" (1 + List.length others);
+      (match Option.bind prev D.first_goal_view with
+      | Some (ph, _, _) ->
+          List.iter
+            (fun h -> if not (List.mem h ph) then Printf.bprintf b "+ %s\n" (truncate 200 h))
+            hyps;
+          List.iter
+            (fun h -> if not (List.mem h hyps) then Printf.bprintf b "- %s\n" (truncate 200 h))
+            ph
+      | None ->
+          List.iter (fun h -> Printf.bprintf b "%s\n" (truncate 200 h)) hyps);
+      Printf.bprintf b "⊢ %s" (truncate 400 concl);
+      (match others with
+      | [] -> ()
+      | l ->
+          let shown = List.filteri (fun i _ -> i < 3) l in
+          Printf.bprintf b "\nother goals: %s%s"
+            (String.concat " | " (List.map (truncate 100) shown))
+            (if List.length l > 3 then Printf.sprintf " (+%d more)" (List.length l - 3) else ""));
+      Buffer.contents b
+
+let goals_block ?prev st =
+  if Lazy.force render_compact then goals_block_compact ?prev st
+  else goals_block_full st
 
 let write_candidate s =
   let sentences = List.rev_map fst s.committed in
@@ -154,19 +193,19 @@ let step_tool : M.tool =
                     end
                     else
                       Printf.sprintf "%sok: %d sentence(s) committed.\n%s"
-                        (fmt_msgs all_msgs) n_ok (goals_block now)
+                        (fmt_msgs all_msgs) n_ok (goals_block ~prev:st now)
                 | D.Error_at { text; msg; loc = _; msgs } ->
                     Printf.sprintf
                       "%s%d sentence(s) committed, then ERROR at `%s`:\n%s\n\n\
                        state unchanged since last success:\n%s"
                       (fmt_msgs (all_msgs @ msgs))
-                      n_ok (String.trim text) msg (goals_block now)
+                      n_ok (String.trim text) msg (goals_block ~prev:st now)
                 | D.Timeout_at { text; timeout_s } ->
                     Printf.sprintf
                       "%s%d sentence(s) committed, then TIMEOUT (>%gs) at `%s` \
                        — this tactic is too slow here; try something else.\n%s"
                       (fmt_msgs all_msgs) n_ok timeout_s (String.trim text)
-                      (goals_block now)
+                      (goals_block ~prev:st now)
                 | D.Parse_error { msg; _ } ->
                     Printf.sprintf
                       "%s%d sentence(s) committed, then SYNTAX ERROR:\n%s"
@@ -225,8 +264,6 @@ let rollback_tool : M.tool =
   }
 
 let try_timeout = lazy (getenv_f "ROCQ_TRY_TIMEOUT" 5.)
-
-let truncate n s = if String.length s <= n then s else String.sub s 0 n ^ "…"
 
 type try_outcome =
   | Full of D.exec_step list * bool (* steps, proof complete *)
@@ -357,7 +394,7 @@ let try_tool : M.tool =
             let tail =
               if s.complete then "\nPROOF COMPLETE — the file is saved. Reply DONE."
               else if !committed_idx >= 0 then
-                "\nafter commit:\n" ^ goals_block (cur_state s)
+                "\nafter commit:\n" ^ goals_block ~prev:st (cur_state s)
               else "\nnothing committed; state unchanged."
             in
             M.text_result
@@ -367,6 +404,73 @@ let try_tool : M.tool =
                   ("n_candidates", `Int (List.length cands));
                   ("committed_idx", `Int !committed_idx);
                   ("complete", `Bool s.complete) ]);
+  }
+
+let search_tool : M.tool =
+  {
+    name = "search";
+    description =
+      "Search the loaded libraries for lemmas matching a pattern. `query` is \
+       a Rocq Search argument: a pattern like (_ + _ <= _ + _)%R, a name \
+       fragment in quotes like \"mult\" \"compat\", a head constant like Rsqr, \
+       or combinations. Returns matching lemma names with statements. Use \
+       this instead of guessing lemma names.";
+    input_schema =
+      `Assoc
+        [ ("type", `String "object");
+          ("properties",
+           `Assoc
+             [ ("query",
+                `Assoc
+                  [ ("type", `String "string");
+                    ("description", `String "Search argument(s), without the leading `Search`") ]);
+               ("limit",
+                `Assoc
+                  [ ("type", `String "integer");
+                    ("description", `String "Max results to show (default 10)") ]) ]);
+          ("required", `List [ `String "query" ]) ];
+    handler =
+      (fun args ->
+        let s = get_session () in
+        match JU.member "query" args with
+        | `String q ->
+            let limit =
+              match JU.member "limit" args with `Int n when n > 0 -> min n 50 | _ -> 10
+            in
+            let q = String.trim q in
+            let q =
+              (* tolerate agents passing a full command *)
+              if Str.string_match (Str.regexp "^Search\\b") q 0 then q
+              else "Search " ^ q
+            in
+            let q = if String.length q > 0 && q.[String.length q - 1] = '.' then q else q ^ "." in
+            let st = cur_state s in
+            let t0 = Unix.gettimeofday () in
+            let steps, stop = D.exec_text ~timeout_s:10. ~qed_timeout_s:10. st q in
+            let prover_ms = (Unix.gettimeofday () -. t0) *. 1000. in
+            let body =
+              match stop with
+              | D.Done ->
+                  let msgs = List.concat_map (fun (x : D.exec_step) -> x.D.msgs) steps in
+                  let entries =
+                    List.concat_map (fun m -> String.split_on_char '\n' m) msgs
+                    |> List.filter (fun l -> String.trim l <> "")
+                  in
+                  let n = List.length entries in
+                  if n = 0 then "no lemmas found; try a more general pattern"
+                  else
+                    let shown = List.filteri (fun i _ -> i < limit) entries in
+                    String.concat "\n" shown
+                    ^ (if n > List.length shown then
+                         Printf.sprintf "\n(%d more not shown — refine the query)" (n - List.length shown)
+                       else "")
+              | D.Error_at { msg; _ } -> "search error: " ^ truncate 300 msg
+              | D.Timeout_at _ -> "search timed out"
+              | D.Parse_error { msg; _ } -> "search syntax error: " ^ truncate 300 msg
+            in
+            M.text_result body
+              ~log:[ ("prover_ms", `Float prover_ms); ("query", `String q) ]
+        | _ -> M.text_result ~is_error:true "missing required argument: query");
   }
 
 let state_tool : M.tool =
@@ -387,7 +491,9 @@ let state_tool : M.tool =
         M.text_result
           (Printf.sprintf "committed proof: %s\n%s%s" proof_so_far
              (if s.complete then "PROOF COMPLETE.\n" else "")
-             (goals_block now)));
+             (* always full fidelity here: `state` is the recovery path for
+                anything the compact renderings elided *)
+             (goals_block_full now)));
   }
 
 let () =
@@ -396,5 +502,5 @@ let () =
     | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
     | _ -> [ "step"; "rollback"; "state" ]
   in
-  let all = [ step_tool; rollback_tool; state_tool; try_tool ] in
+  let all = [ step_tool; rollback_tool; state_tool; try_tool; search_tool ] in
   M.run (List.filter (fun (t : M.tool) -> List.mem t.name enabled) all)
