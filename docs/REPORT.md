@@ -90,6 +90,24 @@ Interpretation: converting k model turns into one call with k speculative
 verdicts materially raises solve rate at fixed turn budget — the strongest
 evidence yet that turns-to-information is the binding constraint.
 
+### Winner confirmation on disjoint problems — run `session_try_dev150`
+(150 fresh stratified stdlib problems, disjoint from dev60; 2 reps; no tuning)
+
+| | easy | medium | hard |
+|---|---|---|---|
+| pass@1 / pass@2 | .450 / .500 | .330 / .360 | .350 / .360 |
+| cost_usd_mean | .051 | .066 | .062 |
+| wall_s_mean | 45.4 | 55.5 | 50.2 |
+| tokens_out_mean | 2 219 | 3 415 | 2 756 |
+| rep_rate_std | .042 | .042 | .014 |
+
+Efficiency profile transfers almost unchanged from dev60 (cost, wall, calls,
+tokens within ~10 %). Medium/hard solve rates hold (.33/.35 vs .375/.375 on
+dev60, within rep variance). Easy drops .65 → .45: the dev60 easy stratum was
+an easier draw than the easy stratum at large — a reminder that absolute
+per-bucket solve rates are sample-dependent even within a difficulty label;
+config-vs-config deltas on the SAME set remain the valid comparison.
+
 ## 4. Profiling & hypotheses
 - H1 (prover cost dominates): PARTIALLY REFUTED on easy — prover = 6% of wall;
   model API ≈ 90%. Re-examined per bucket below.
