@@ -69,8 +69,18 @@ bottleneck (turns × output tokens, not compile seconds, dominate cost; but the
 interface shape controls both). solved_tool_calls rose on easy (+22 %): calls
 became ~free, so the policy takes more, smaller steps — the right trade.
 
-### session_try vs session
-PENDING.
+### session_try vs session — run `session_try_dev60` — **KEPT**
+
+pass@1: easy .650 (+.175, +37 %), medium .375 (+.05, +15 %), hard .375 (+.05,
++15 %). pass@2: .70/.40/.45 vs .55/.40/.45. Turns −15 %/−0 %/−8 %; cost flat
+(−9 %/+1 %/−3 %); tokens_in +18 %/+25 %/+12 % (k verdicts per try response —
+targeted by the next rung). Per-solved medium costs rose (+46 %) — a
+composition effect: the marginal solves are harder problems entering the
+conditional mean.
+
+Interpretation: converting k model turns into one call with k speculative
+verdicts materially raises solve rate at fixed turn budget — the strongest
+evidence yet that turns-to-information is the binding constraint.
 
 ## 4. Profiling & hypotheses
 - H1 (prover cost dominates): PARTIALLY REFUTED on easy — prover = 6% of wall;

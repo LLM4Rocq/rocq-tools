@@ -15,7 +15,8 @@ Full A/B in docs/REPORT.md; decision + numbers in DESIGN.md. `session_try`
 |---|---|---|---|
 | baseline | .45 / .25 / .25 | — | control |
 | session | .475 / .325 / .325 | +30 % med & hard, −80 % out-tokens | **KEPT** |
-| session_try | running | — | — |
+| session_try | .65 / .375 / .375 | easy +37 %, med/hard +15 %, cost flat | **KEPT** |
+| session_try_compact | running | targets try's +12–25 % tokens_in | — |
 
 ## Environment (recorded)
 - Apple M3 Max, 14 cores, 96 GB RAM, macOS 14.3 · dedicated local opam switch

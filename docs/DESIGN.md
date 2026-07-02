@@ -74,7 +74,9 @@ effect (266 ms → ~1 ms/interaction measured in the session smoke).
 3. `session+try` — `try {candidates:[...]}`: k tactic candidates from ONE
    completion, evaluated speculatively against the same snapshot in-process;
    returns per-candidate verdict + resulting-goal digest. Converts k model
-   turns into 1. [PENDING-MEASUREMENT]
+   turns into 1. **[KEPT — session_try_dev60 vs session_dev60: pass@1
+   easy +37 %, medium/hard +15 %, cost flat, turns −8…−15 %; regression:
+   tokens_in +12…25 % (bigger responses), addressed by rung 4]**
 4. `+compact-state` — goal-delta rendering with token budgets + stable ids to
    re-fetch elided detail. [PENDING-MEASUREMENT]
 5. `+search` — token-budgeted `Search`/`About` over the loaded environment,
