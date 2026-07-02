@@ -113,5 +113,27 @@ effect (266 ms → ~1 ms/interaction measured in the session smoke).
    in-session solves gate-rejected for Require; closers absent from shipped
    imports). [MEASURING on minif2f_valid vs pre-v2 run]
 
+## Intra-proof parallelism (A12 directive)
+
+Design principle: the session's immutable-state snapshots are the concurrency
+primitive. A frozen `Vernacstate.t` can be (a) copied O(1) into a forked child
+process (COW memory) or (b) served to a second policy agent. Three layers:
+
+1. `parallel_close` (rung): on a multi-goal state, fork one child per open
+   goal, run the finisher portfolio (or a deeper budget) on each subgoal
+   concurrently, collect per-goal results through pipes, commit the closures
+   into the live session. Measures: latency vs sequential auto_close on
+   k-goal states; solve delta on hard bucket. [BUILDING]
+2. Session daemon: one process owns the live proof; Unix-socket protocol; thin
+   MCP shims let k policy agents attach, `focus` distinct goal ids, commit
+   goal-scoped tactic scripts; the daemon serializes commits (goals are
+   independent by construction — sibling subgoals share no evars after
+   focusing — so merges cannot conflict). Also amortizes the 215 ms init and
+   ~310 MB RSS across agents. [PLANNED]
+3. Decomposition workflow: coordinator agent does structural work (split /
+   induction / assert skeleton), then k workers each close one subgoal in
+   parallel; equal-wall-clock comparison vs solo agent on the hard bucket.
+   [PLANNED — the headline experiment for the parallel axis]
+
 Order rationale: 2 unlocks 3-5 mechanically; 3 targets the measured dominant
 cost (turns); 4 targets token growth; 5 targets the #2 error class.

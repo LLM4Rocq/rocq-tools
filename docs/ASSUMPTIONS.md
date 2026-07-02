@@ -69,6 +69,17 @@ transfer across policy strength. Hypothesis: structural wins (session/try)
 transfer; the hints delta shrinks (it targets Haiku-specific Lean-isms).
 Runs tagged `*_sonnet`; never used for keep/revert decisions or the freeze.
 
+## A12 — Intra-proof parallelism directive (user steer, 2026-07-02 evening)
+The tool layer must generalize to large-scale projects: parallel agents working
+on DIFFERENT PARTS of the SAME proof (multi-agent workflows for hard problems).
+Plan: (1) rung: fork-based `parallel_close` — attack all open subgoals
+simultaneously in COW child processes; (2) architecture: shared session daemon
+(Unix socket) + thin MCP shims so multiple policy agents attach to one live
+proof with goal-scoped focus/commit; (3) experiment: coordinator + k workers
+vs solo agent at EQUAL wall-clock budget on the hard bucket (pass@equal-budget
+is the honest metric). Enabling primitive already in place: immutable
+Vernacstate snapshots make any subgoal shippable to any worker.
+
 ## A9 — miniF2F difficulty buckets from source tiers
 Filename-prefix tiers map to buckets: mathd_algebra + mathd_numbertheory → easy
 (course problems, 130/244 per split); amc12* + algebra + numbertheory +
