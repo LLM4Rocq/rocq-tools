@@ -20,11 +20,32 @@ Full A/B in docs/REPORT.md; decision + numbers in DESIGN.md. `session_try`
 | session_try_search | .60 / .35 / .40 | noise-level pass@1 (−/−/+), cost −5 %; heavy adoption (324 calls) but zero rescue: 15 % solve with search vs 81 % without (selection) | REVERTED |
 | session_try_hints | queued | error payloads get Lean-ism→Rocq rewrites (targets the 1151× `[ltac_use_default]` parse-error class + Lean tactic names) | — |
 
-**Now running:** `session_try_dev150` — confirmation of the winner on the
-disjoint dev150 set (300 attempts, ~3 h); hints A/B auto-starts after.
-**Today's remaining plan:** hints keep/revert → miniF2F-valid confirmation run
-(overnight if needed) → scalability sweep tomorrow → freeze + held-out + report
-day 4-5.
+| session_try_hints | .60 / .475 / .375 | medium +27 % (3 strictly-new problems, 0 lost) | **KEPT** |
+
+**Winner:** `session_try_hints`. Confirmations: dev150 (disjoint, clean —
+efficiency transfers, easy solve-rate sample-dependent), miniF2F-valid running.
+
+## Major discovery this afternoon (env v2, A11)
+miniF2F files import only `Reals` → the policy's closers (nra/lra/lia) didn't
+exist in-session there, and agents that `Require`d Psatz "succeeded" in-session
+only to die at the gate — an interface trap. Fixed uniformly (session preload +
+gate/baseline `-ri` injection of the scope-neutral Lia/Lra/Psatz; Require now
+refused with an explanatory error; statement-invariance verified). Gated
+ROCQ_ENV_V2; the in-flight pre-v2 miniF2F run is kept clean as the "before"
+measurement and the v2 rerun is queued as its A/B.
+
+## Auto-chained pipeline (no idle machine time)
+1. RUNNING `session_try_hints_minif2f_valid` (488 attempts, pre-v2 baseline)
+2. → rung-7 `auto_close` A/B on dev60 (portfolio finisher; failure mining: 97 %
+   of failures die at max-turns, closers enumerated manually 1 turn each)
+3. → baseline scalability sweep N ∈ {1,2,4,8}
+4. → env-v2 miniF2F A/B (`session_try_hints_v2_minif2f_valid`)
+Then: rung-8 (did-you-mean, built+smoked), winner sweep, Sonnet cross-policy
+annex (A10, user-requested), freeze day 5 → held-out → report.
+
+## Remote
+Pushed to github.com/LLM4Rocq/rocq-tools branch `agent-tooling` (user-created
+remote); pushing at every checkpoint from now on.
 
 Live view: `logs/dashboard.html` (auto-refreshing; regenerate with
 `python3 harness/dashboard.py --watch`). Task brief: `docs/TASK.md`.
