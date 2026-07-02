@@ -222,6 +222,94 @@ type try_outcome =
   | Full of D.exec_step list * bool (* steps, proof complete *)
   | Partial of int * string (* sentences ok, error text *)
 
+(* ---- rung 8: did-you-mean suggestions on unknown references ----------- *)
+
+let suggest_on =
+  lazy (match Sys.getenv_opt "ROCQ_SUGGEST" with Some "1" -> true | _ -> false)
+
+let ident_fragments ident =
+  (* split snake_case and CamelCase into searchable fragments *)
+  let frags = String.split_on_char '_' ident in
+  let camel s =
+    let out = ref [] and buf = Buffer.create 8 in
+    String.iter
+      (fun c ->
+        if c >= 'A' && c <= 'Z' && Buffer.length buf > 0 then begin
+          out := Buffer.contents buf :: !out;
+          Buffer.clear buf
+        end;
+        Buffer.add_char buf c)
+      s;
+    if Buffer.length buf > 0 then out := Buffer.contents buf :: !out;
+    List.rev !out
+  in
+  (* keep original case: Rocq's Search "frag" is case-sensitive *)
+  List.concat_map camel frags |> List.filter (fun f -> String.length f >= 3)
+
+let suggest_names st ident =
+  let frags = ident_fragments ident in
+  if frags = [] then []
+  else begin
+    let hits : (string, int) Hashtbl.t = Hashtbl.create 64 in
+    List.iter
+      (fun frag ->
+        let q = Printf.sprintf "Search \"%s\"." frag in
+        let steps, _stop = D.exec_text ~timeout_s:5. ~qed_timeout_s:5. st q in
+        let is_ident_char c =
+          match c with
+          | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' | '.' -> true
+          | _ -> false
+        in
+        List.iter
+          (fun (x : D.exec_step) ->
+            List.iter
+              (fun m ->
+                (* one Search hit per message: "name: statement..." on line 1,
+                   continuation lines indented — only line 1 carries the name *)
+                match String.split_on_char '\n' m with
+                | [] -> ()
+                | line :: _ -> (
+                    match String.index_opt line ':' with
+                    | Some i when i > 0 ->
+                        let name = String.trim (String.sub line 0 i) in
+                        if
+                          name <> ""
+                          && String.for_all is_ident_char name
+                          && not (String.contains name ' ')
+                        then
+                          let prev =
+                            match Hashtbl.find_opt hits name with
+                            | Some v -> v
+                            | None -> 0
+                          in
+                          Hashtbl.replace hits name (prev + 1)
+                    | _ -> ()))
+              x.D.msgs)
+          steps)
+      frags;
+    Hashtbl.fold (fun k v acc -> (k, v) :: acc) hits []
+    |> List.sort (fun (a, va) (b, vb) ->
+           if va <> vb then compare vb va else compare (String.length a) (String.length b))
+    |> List.filteri (fun i _ -> i < 5)
+    |> List.map fst
+  end
+
+let unknown_ref_re =
+  Str.regexp
+    "The \\(reference\\|variable\\) \\([A-Za-z_][A-Za-z0-9_']*\\) was not found"
+
+let with_suggestions st body =
+  if not (Lazy.force suggest_on) then body
+  else
+    try
+      let _ = Str.search_forward unknown_ref_re body 0 in
+      let ident = Str.matched_group 2 body in
+      match suggest_names st ident with
+      | [] -> body
+      | names ->
+          body ^ "\nnear-miss lemmas that DO exist: " ^ String.concat ", " names
+    with Not_found -> body
+
 let step_tool : M.tool =
   {
     name = "step";
@@ -287,12 +375,13 @@ let step_tool : M.tool =
                       Printf.sprintf "%sok: %d sentence(s) committed.\n%s"
                         (fmt_msgs all_msgs) n_ok (goals_block ~prev:st now)
                 | D.Error_at { text; msg; loc = _; msgs } ->
-                    with_hint ~sentence:text ~msg
-                      (Printf.sprintf
-                         "%s%d sentence(s) committed, then ERROR at `%s`:\n%s\n\n\
-                          state unchanged since last success:\n%s"
-                         (fmt_msgs (all_msgs @ msgs))
-                         n_ok (String.trim text) msg (goals_block ~prev:st now))
+                    with_suggestions now
+                      (with_hint ~sentence:text ~msg
+                         (Printf.sprintf
+                            "%s%d sentence(s) committed, then ERROR at `%s`:\n%s\n\n\
+                             state unchanged since last success:\n%s"
+                            (fmt_msgs (all_msgs @ msgs))
+                            n_ok (String.trim text) msg (goals_block ~prev:st now)))
                 | D.Timeout_at { text; timeout_s } ->
                     Printf.sprintf
                       "%s%d sentence(s) committed, then TIMEOUT (>%gs) at `%s` \
@@ -483,11 +572,20 @@ let try_tool : M.tool =
                         tag ^ (if k > 0 then Printf.sprintf "(%d sentence(s) would pass) " k else "") ^ err
                       in
                       (* one hint per distinct cause per response *)
-                      (match hint_for ~sentence:cand ~msg:err with
-                      | Some h when not (Hashtbl.mem seen_hints h) ->
-                          Hashtbl.add seen_hints h ();
-                          base ^ "\n    hint: " ^ h
-                      | _ -> base))
+                      let base =
+                        match hint_for ~sentence:cand ~msg:err with
+                        | Some h when not (Hashtbl.mem seen_hints h) ->
+                            Hashtbl.add seen_hints h ();
+                            base ^ "\n    hint: " ^ h
+                        | _ -> base
+                      in
+                      (* did-you-mean: at most one lookup per response *)
+                      if not (Hashtbl.mem seen_hints "__suggested__") then begin
+                        let b' = with_suggestions st base in
+                        if b' != base then Hashtbl.add seen_hints "__suggested__" ();
+                        b'
+                      end
+                      else base)
                 outcomes
             in
             let tail =
@@ -572,6 +670,86 @@ let search_tool : M.tool =
         | _ -> M.text_result ~is_error:true "missing required argument: query");
   }
 
+(* ---- rung 7: auto_close — server-side finishing portfolio ------------- *)
+
+let portfolio =
+  [ "lra."; "lia."; "nra."; "nia."; "field_simp. lra."; "field_simp. nra.";
+    "ring."; "ring_simplify. lra."; "psatz R 3."; "auto with real arith." ]
+
+let auto_timeout = lazy (getenv_f "ROCQ_AUTO_TIMEOUT" 2.)
+
+let auto_close_tool : M.tool =
+  {
+    name = "auto_close";
+    description =
+      "Run the standard finishing portfolio against the CURRENT goal in one \
+       call: lia, lra, nra, nia, field_simp+lra/nra, ring, ring_simplify+lra, \
+       psatz, auto with real arith. If one fully succeeds it is committed \
+       automatically. Call this first on every new goal before hand-crafting \
+       tactics; if it fails, do structural work (intros/destruct/assert) and \
+       call it again on the simplified goal.";
+    input_schema = `Assoc [ ("type", `String "object"); ("properties", `Assoc []) ];
+    handler =
+      (fun _args ->
+        let s = get_session () in
+        if s.complete then
+          M.text_result
+            "The proof is already COMPLETE. Reply DONE — do not call more tools."
+        else
+          let st = cur_state s in
+          let t0 = Unix.gettimeofday () in
+          let tried = ref [] in
+          let winner = ref None in
+          List.iter
+            (fun cand ->
+              if !winner = None then begin
+                let steps, stop =
+                  D.exec_text ~timeout_s:(Lazy.force auto_timeout)
+                    ~qed_timeout_s:(Lazy.force auto_timeout) st cand
+                in
+                match stop with
+                | D.Done when steps <> [] -> winner := Some (cand, steps)
+                | _ -> tried := cand :: !tried
+              end)
+            portfolio;
+          let prover_ms = (Unix.gettimeofday () -. t0) *. 1000. in
+          let body =
+            match !winner with
+            | Some (cand, steps) ->
+                List.iter
+                  (fun (x : D.exec_step) ->
+                    if not x.D.is_query then
+                      s.committed <- (x.D.text, x.D.post) :: s.committed)
+                  steps;
+                let last = List.nth steps (List.length steps - 1) in
+                let closed_all = not (D.proof_open last.D.post) in
+                if closed_all then begin
+                  s.complete <- true;
+                  write_candidate s;
+                  Printf.sprintf
+                    "`%s` closes it — COMMITTED.\nPROOF COMPLETE — the file is \
+                     saved. Reply DONE."
+                    cand
+                end
+                else
+                  Printf.sprintf "`%s` closes the current goal — COMMITTED.\n%s"
+                    cand
+                    (goals_block ~prev:st (cur_state s))
+            | None ->
+                Printf.sprintf
+                  "no finisher applies (tried %d: %s). Do structural work \
+                   (intros / destruct / assert a helper fact) and try again."
+                  (List.length portfolio)
+                  (String.concat " " (List.map first_word portfolio))
+          in
+          M.text_result body
+            ~log:
+              [ ("prover_ms", `Float prover_ms);
+                ("closed", `Bool (!winner <> None));
+                ("winner", `String (match !winner with Some (c, _) -> c | None -> ""));
+                ("complete", `Bool s.complete) ]);
+  }
+
 let state_tool : M.tool =
   {
     name = "state";
@@ -601,5 +779,7 @@ let () =
     | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
     | _ -> [ "step"; "rollback"; "state" ]
   in
-  let all = [ step_tool; rollback_tool; state_tool; try_tool; search_tool ] in
+  let all =
+    [ step_tool; rollback_tool; state_tool; try_tool; search_tool; auto_close_tool ]
+  in
   M.run (List.filter (fun (t : M.tool) -> List.mem t.name enabled) all)
