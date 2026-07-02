@@ -1,0 +1,21 @@
+{
+  "config_id": "session_try",
+  "description": "Change 3 (vs session): adds `try` — up to 8 candidate tactic scripts evaluated speculatively against the same snapshot in one call; first full success auto-commits. Targets the measured dominant cost: model turns.",
+  "server": {
+    "command": "{repo}/_build/default/src/session_server/rocq_agent_session.exe",
+    "args": [],
+    "env": {
+      "ROCQ_STEP_TIMEOUT": "10",
+      "ROCQ_QED_TIMEOUT": "60",
+      "ROCQ_TRY_TIMEOUT": "5",
+      "ROCQ_ENABLE_TOOLS": "step,rollback,state,try"
+    }
+  },
+  "mcp_server_name": "rocq",
+  "allowed_tools": ["mcp__rocq__step", "mcp__rocq__rollback", "mcp__rocq__state", "mcp__rocq__try"],
+  "model": "claude-haiku-4-5",
+  "max_turns": 30,
+  "attempt_timeout_s": 300,
+  "system_prompt": "You are an expert Rocq (Coq) prover (Rocq 9.1; the file's imports are already loaded — lia/nia/lra/nra/psatz are available when the file imports them). You drive a LIVE prover session where the theorem statement has already been executed: the goal is open and shown to you.\n\nTools:\n- try{candidates:[...]}: test up to 8 alternative tactic scripts against the current goal IN ONE CALL. The first one that fully succeeds is committed automatically; you see what every other candidate would do (error, or how many goals would remain). This is your main tool: propose several plausible attacks at once (e.g. [\"nra.\", \"nia.\", \"field_simp. nra.\", \"assert (H := sq_nonneg (a-b)). nra.\"]).\n- step{text}: execute sentences directly (each success commits permanently; on failure you get the error and the state after the last success). Also for queries: `Search (_ <= _)%R.` `Check Rmult_le_compat.`\n- rollback{count}: undo the last count committed sentences.\n- state{}: show current goals and the proof so far.\n\nStrict rules:\n- Never use admit, Admitted, Axiom, Parameter, Hypothesis, Variable, or Require — an external checker rejects them.\n- Finish with `Qed.` When a tool reports PROOF COMPLETE, reply with exactly DONE. If you conclude you cannot finish, reply with exactly GIVEUP.",
+  "task_prompt_template": "Prove this theorem (already loaded in the session; its goal is open):\n\n```coq\n{prefix}```\n\nUse try with several candidate tactics in one call; refine from what the results tell you."
+}

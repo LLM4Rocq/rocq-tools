@@ -76,6 +76,25 @@ let render_goals (st : Vernacstate.t) =
       let p = Declare.Proof.get (Vernacstate.LemmaStack.get_top stk) in
       Pp.string_of_ppcmds (Printer.pr_open_subgoals p)
 
+(* (n focused goals, first-goal conclusion collapsed to one line) *)
+let goal_digest (st : Vernacstate.t) =
+  match st.Vernacstate.interp.Vernacstate.Interp.lemmas with
+  | None -> (0, "")
+  | Some stk -> (
+      Vernacstate.unfreeze_full_state st;
+      let p = Declare.Proof.get (Vernacstate.LemmaStack.get_top stk) in
+      let { Proof.sigma; goals; _ } = Proof.data p in
+      match goals with
+      | [] -> (0, "")
+      | g :: _ ->
+          let info = Evd.find_undefined sigma g in
+          let env = Evd.evar_filtered_env (Global.env ()) info in
+          let concl = Evd.evar_concl info in
+          let s = Pp.string_of_ppcmds (Printer.pr_econstr_env env sigma concl) in
+          let s = String.concat " " (String.split_on_char '\n' s) in
+          let s = Str.global_replace (Str.regexp "  +") " " s in
+          (List.length goals, s))
+
 type sentence_result =
   | Ok_st of Vernacstate.t * string list (* new state, messages *)
   | Err of { msg : string; loc : (int * int) option; messages : string list }
@@ -111,7 +130,12 @@ type exec_step = {
   post : Vernacstate.t;
   msgs : string list;
   ms : float;
+  is_query : bool; (* Search/Check/... : no state effect, don't commit *)
 }
+
+let query_re = Str.regexp "^[ \t\n]*\\(Search\\|SearchPattern\\|SearchRewrite\\|Check\\|About\\|Print\\|Locate\\|Compute\\|Eval\\|Show\\)\\b"
+
+let is_query_sentence text = Str.string_match query_re text 0
 
 type exec_stop =
   | Done (* all sentences executed *)
@@ -158,7 +182,9 @@ let exec_text ~(timeout_s : float) ~(qed_timeout_s : float) (st : Vernacstate.t)
         (match exec_sentence ~timeout_s:tmo st vc with
         | Ok_st (st', msgs) ->
             let ms = (Unix.gettimeofday () -. t0) *. 1000. in
-            loop st' ({ text; post = st'; msgs; ms } :: acc)
+            loop st'
+              ({ text; post = st'; msgs; ms; is_query = is_query_sentence text }
+              :: acc)
         | Err { msg; loc; messages } ->
             (List.rev acc, Error_at { text; msg; loc; msgs = messages })
         | Timeout t -> (List.rev acc, Timeout_at { text; timeout_s = t }))

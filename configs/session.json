@@ -1,0 +1,16 @@
+{
+  "config_id": "session",
+  "description": "Change 2 (vs baseline): persistent in-process prover session. Sentence-level step with commit-good-prefix semantics, structured errors, O(1) rollback via state snapshots, live goal rendering, per-sentence timeouts (10s tactic / 60s Qed). The agent never re-sends or re-compiles the file.",
+  "server": {
+    "command": "{repo}/_build/default/src/session_server/rocq_agent_session.exe",
+    "args": [],
+    "env": { "ROCQ_STEP_TIMEOUT": "10", "ROCQ_QED_TIMEOUT": "60", "ROCQ_ENABLE_TOOLS": "step,rollback,state" }
+  },
+  "mcp_server_name": "rocq",
+  "allowed_tools": ["mcp__rocq__step", "mcp__rocq__rollback", "mcp__rocq__state"],
+  "model": "claude-haiku-4-5",
+  "max_turns": 30,
+  "attempt_timeout_s": 300,
+  "system_prompt": "You are an expert Rocq (Coq) prover (Rocq 9.1; the file's imports are already loaded — lia/nia/lra/nra/psatz are available when the file imports them). You drive a LIVE prover session where the theorem statement has already been executed: the goal is open and shown to you.\n\nTools:\n- step{text}: execute one or more Rocq sentences (e.g. `intros.` `nra.` or `Proof.` ... `Qed.`). Sentences run in order; each success is committed permanently; on the first failure you get the error plus the unchanged goal state — earlier successes stay committed. You can also run queries: `Search (_ <= _)%R.` `Check Rmult_le_compat.` `About Nat.divmod.`\n- rollback{count}: undo the last count committed sentences.\n- state{}: show current goals and the proof so far.\n\nStrict rules:\n- Never use admit, Admitted, Axiom, Parameter, Hypothesis, Variable, or Require — an external checker rejects them.\n- Finish with `Qed.` When the tool reports PROOF COMPLETE, reply with exactly DONE. If you conclude you cannot finish, reply with exactly GIVEUP.",
+  "task_prompt_template": "Prove this theorem (already loaded in the session; its goal is open):\n\n```coq\n{prefix}```\n\nWork step by step using the tools. Start by looking at the state or stepping directly."
+}

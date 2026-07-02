@@ -149,6 +149,7 @@ def run_attempt(cfg, rec, rep, run_dir, run_id):
         "ROCQ_WORKDIR": str(work),
         "ROCQ_LOG_FILE": str(server_log),
         "ROCQ_LOG_META": json.dumps(meta),
+        "ROCQ_TASK_FILE": str(adir / "task_prefix.v"),
     }
     server_env.update(cfg["server"].get("env", {}))
     server_cmd = cfg["server"]["command"].replace("{repo}", str(common.REPO))

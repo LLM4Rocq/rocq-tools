@@ -4,6 +4,7 @@
   mcp_core
   yojson
   unix
+  str
   rocq-runtime.boot
   rocq-runtime.clib
   rocq-runtime.lib

@@ -129,9 +129,12 @@ let step_tool : M.tool =
                   ~qed_timeout_s:(Lazy.force qed_timeout) st text
               in
               let prover_ms = (Unix.gettimeofday () -. t0) *. 1000. in
+              (* queries (Search/Check/...) execute but are not part of the
+                 proof script; only state-changing sentences are committed *)
               List.iter
                 (fun (st : D.exec_step) ->
-                  s.committed <- (st.text, st.post) :: s.committed)
+                  if not st.is_query then
+                    s.committed <- (st.text, st.post) :: s.committed)
                 steps;
               let n_ok = List.length steps in
               let all_msgs =
@@ -221,6 +224,151 @@ let rollback_tool : M.tool =
           ~log:[ ("rolled_back", `Int dropped) ]);
   }
 
+let try_timeout = lazy (getenv_f "ROCQ_TRY_TIMEOUT" 5.)
+
+let truncate n s = if String.length s <= n then s else String.sub s 0 n ^ "…"
+
+type try_outcome =
+  | Full of D.exec_step list * bool (* steps, proof complete *)
+  | Partial of int * string (* sentences ok, error text *)
+
+let try_tool : M.tool =
+  {
+    name = "try";
+    description =
+      "Try up to 8 candidate tactic scripts SPECULATIVELY against the current \
+       state, in order. Each candidate is evaluated independently from the \
+       same state. The first candidate that fully succeeds is COMMITTED (like \
+       step); all others are just reported with what they would do. Use this \
+       to test several ideas in one call instead of one step per idea.";
+    input_schema =
+      `Assoc
+        [ ("type", `String "object");
+          ("properties",
+           `Assoc
+             [ ("candidates",
+                `Assoc
+                  [ ("type", `String "array");
+                    ("items", `Assoc [ ("type", `String "string") ]);
+                    ("description",
+                     `String
+                       "Candidate scripts (each one or more sentences, e.g. \
+                        \"nra.\" or \"intros. field_simp. nra.\")") ]);
+               ("commit",
+                `Assoc
+                  [ ("type", `String "string");
+                    ("enum", `List [ `String "first_success"; `String "none" ]);
+                    ("description",
+                     `String "Whether to commit the first fully-successful candidate (default first_success)") ]) ]);
+          ("required", `List [ `String "candidates" ]) ];
+    handler =
+      (fun args ->
+        let s = get_session () in
+        if s.complete then
+          M.text_result
+            "The proof is already COMPLETE. Reply DONE — do not call more tools."
+        else
+          let cands =
+            match JU.member "candidates" args with
+            | `List l ->
+                List.filter_map
+                  (function `String c when String.trim c <> "" -> Some c | _ -> None)
+                  l
+            | _ -> []
+          in
+          let cands = List.filteri (fun i _ -> i < 8) cands in
+          if cands = [] then
+            M.text_result ~is_error:true "candidates must be a non-empty array of strings"
+          else
+            let commit_first =
+              match JU.member "commit" args with
+              | `String "none" -> false
+              | _ -> true
+            in
+            let st = cur_state s in
+            let t0 = Unix.gettimeofday () in
+            let outcomes =
+              List.map
+                (fun cand ->
+                  let steps, stop =
+                    D.exec_text ~timeout_s:(Lazy.force try_timeout)
+                      ~qed_timeout_s:(Lazy.force qed_timeout) st cand
+                  in
+                  match stop with
+                  | D.Done when steps <> [] ->
+                      let last = List.nth steps (List.length steps - 1) in
+                      (cand, Full (steps, not (D.proof_open last.D.post)))
+                  | D.Done -> (cand, Partial (0, "empty script"))
+                  | D.Error_at { text; msg; _ } ->
+                      ( cand,
+                        Partial
+                          ( List.length steps,
+                            Printf.sprintf "error at `%s`: %s" (String.trim text)
+                              (truncate 200 msg) ) )
+                  | D.Timeout_at { text; timeout_s } ->
+                      ( cand,
+                        Partial
+                          ( List.length steps,
+                            Printf.sprintf "timeout (>%gs) at `%s`" timeout_s
+                              (String.trim text) ) )
+                  | D.Parse_error { msg; _ } ->
+                      (cand, Partial (List.length steps, "syntax error: " ^ truncate 200 msg)))
+                cands
+            in
+            let prover_ms = (Unix.gettimeofday () -. t0) *. 1000. in
+            (* commit the first full success *)
+            let committed_idx = ref (-1) in
+            (if commit_first then
+               List.iteri
+                 (fun i (_, o) ->
+                   match o with
+                   | Full (steps, complete) when !committed_idx = -1 ->
+                       committed_idx := i;
+                       List.iter
+                         (fun (x : D.exec_step) ->
+                           if not x.D.is_query then
+                             s.committed <- (x.D.text, x.D.post) :: s.committed)
+                         steps;
+                       if complete then begin
+                         s.complete <- true;
+                         write_candidate s
+                       end
+                   | _ -> ())
+                 outcomes);
+            let lines =
+              List.mapi
+                (fun i (cand, o) ->
+                  let tag = Printf.sprintf "[%d] `%s` — " (i + 1) (truncate 60 (String.trim cand)) in
+                  match o with
+                  | Full (steps, complete) ->
+                      let last = List.nth steps (List.length steps - 1) in
+                      let n, concl = D.goal_digest last.D.post in
+                      let status =
+                        if complete then "OK, closes ALL goals"
+                        else if n = 0 then "OK, no goals left — finish with `Qed.`"
+                        else Printf.sprintf "OK, %d goal(s) left; next: %s" n (truncate 120 concl)
+                      in
+                      tag ^ status
+                      ^ (if !committed_idx = i then "  << COMMITTED" else "  (not committed)")
+                  | Partial (k, err) ->
+                      tag ^ (if k > 0 then Printf.sprintf "(%d sentence(s) would pass) " k else "") ^ err)
+                outcomes
+            in
+            let tail =
+              if s.complete then "\nPROOF COMPLETE — the file is saved. Reply DONE."
+              else if !committed_idx >= 0 then
+                "\nafter commit:\n" ^ goals_block (cur_state s)
+              else "\nnothing committed; state unchanged."
+            in
+            M.text_result
+              (String.concat "\n" lines ^ tail)
+              ~log:
+                [ ("prover_ms", `Float prover_ms);
+                  ("n_candidates", `Int (List.length cands));
+                  ("committed_idx", `Int !committed_idx);
+                  ("complete", `Bool s.complete) ]);
+  }
+
 let state_tool : M.tool =
   {
     name = "state";
@@ -242,4 +390,11 @@ let state_tool : M.tool =
              (goals_block now)));
   }
 
-let () = M.run [ step_tool; rollback_tool; state_tool ]
+let () =
+  let enabled =
+    match Sys.getenv_opt "ROCQ_ENABLE_TOOLS" with
+    | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
+    | _ -> [ "step"; "rollback"; "state" ]
+  in
+  let all = [ step_tool; rollback_tool; state_tool; try_tool ] in
+  M.run (List.filter (fun (t : M.tool) -> List.mem t.name enabled) all)
