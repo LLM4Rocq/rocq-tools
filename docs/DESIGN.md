@@ -111,7 +111,11 @@ effect (266 ms → ~1 ms/interaction measured in the session smoke).
 9. Environment v2 (A11) — scope-neutral tactic modules preloaded everywhere;
    `Require` refused with guidance. Motivated by the miniF2F trap (16
    in-session solves gate-rejected for Require; closers absent from shipped
-   imports). [MEASURING on minif2f_valid vs pre-v2 run]
+   imports). **[KEPT — session_try_hints_v2_minif2f_valid vs pre-v2, 488
+   attempts each: easy .57 vs .32 (+77 %), medium .30 vs .13 (+124 %), hard
+   .06 vs .00. The ambient tactic environment is part of the interface: if
+   the standard closers aren't loaded, no amount of feedback quality
+   compensates. Zero Require-trap rejections after the fix (16 before).]**
 
 ## Intra-proof parallelism (A12 directive)
 
