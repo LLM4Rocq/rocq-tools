@@ -249,9 +249,15 @@ pass@1 easy/medium/hard, dev60, 2 reps (4 for the bolded winners):
 | naive whole-file check | .44 / .25 / .30 | **.925 / .95 / .80** |
 | incremental (session+try+hints+auto+sugg) | **.70 / .525 / .425** | .925 / .825 / .70 |
 | draft-first on the session substrate (unified) | .40 / .18 / .22 | .92 / .85 / .75 |
+| + persistence prompting (sonnet_native) | — | .95 / .85 / .75 |
 
 The matrix is diagonal: each policy's best interface differs, and mismatches
-cost 10–34 pp. Draft-first at Sonnet recovers about half the incremental gap
+cost 10–34 pp. Persistence prompting (removing the weak-policy give-up
+discipline; sonnet_native) recovered the session substrate's easy bucket to
+.95 — BEATING naive's .925 at less than half the cost ($.041 vs $.087/attempt)
+— and confirmed the early-quit diagnosis there; the residual medium (−.10) and
+hard (−.05) gaps to naive survive persistence, so they reflect the
+interaction style itself, not just giving up. Draft-first at Sonnet recovers about half the incremental gap
 (kept prefix + repair-from-failure beats cold recompiles on failures) but not
 all of it; at Haiku it is catastrophic (wrong whole-proof drafts burn turns
 and strand the policy on a committed bad prefix). Design consequence: the
