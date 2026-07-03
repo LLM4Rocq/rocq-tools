@@ -215,3 +215,13 @@ retracted in the report; rung-7's KEEP verdict is unaffected (pass@1 measured
 end-to-end). Fix: winner requires goal-count decrease or completion, in both
 session server and team daemon. Measured as rung 9a (winner_autofix) before
 rung 9b (hint synthesis) so the two effects are separable.
+
+## A23 — Usage-pool optimization + real-project infra directive (user, Jul 3 ~21:10)
+User at 75 % of shared model quota (Max x20), Fable at 30 %. (1) Queued evals
+trimmed: rocq_mcp_sonnet finishes (sunk); sonnet_native_auto2 and the
+mathcomp probe drop to 1 rep (pass@1 only, noted); decomposable solo/team
+pair kept at 2 reps (cheap haiku, n=27); nothing else queued — consolidation
+uses existing data. (2) Engineering shifts to Fable-powered infra: dune +
+_CoqProject load-path support end-to-end (session init via ROCQ_INIT_ARGS,
+gate extra args, manifest plumbing, project-args helper), validated on a real
+dune project with a micro-eval.
