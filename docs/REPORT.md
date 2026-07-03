@@ -240,6 +240,28 @@ daemon remains a deliverable: it is the substrate that makes such workflows
 measurable at all, and the winner's near-linear N=8 sweep shows where the
 parallel win actually lives on this dataset — across problems, not within.
 
+### §5b extension (A15): the full policy × interaction-style matrix
+
+pass@1 easy/medium/hard, dev60, 2 reps (4 for the bolded winners):
+
+| interaction style | @ claude-haiku-4-5 | @ claude-sonnet-5 |
+|---|---|---|
+| naive whole-file check | .44 / .25 / .30 | **.925 / .95 / .80** |
+| incremental (session+try+hints+auto+sugg) | **.70 / .525 / .425** | .925 / .825 / .70 |
+| draft-first on the session substrate (unified) | .40 / .18 / .22 | .92 / .85 / .75 |
+
+The matrix is diagonal: each policy's best interface differs, and mismatches
+cost 10–34 pp. Draft-first at Sonnet recovers about half the incremental gap
+(kept prefix + repair-from-failure beats cold recompiles on failures) but not
+all of it; at Haiku it is catastrophic (wrong whole-proof drafts burn turns
+and strand the policy on a committed bad prefix). Design consequence: the
+SUBSTRATE (persistent session, commit-good-prefix, portfolio, hints) is
+policy-neutral infrastructure; the interaction PRESCRIPTION (the prompt) must
+be selected per policy. The frozen config remains the haiku-selected one per
+the pre-registered rule; for strong policies the recommended configuration is
+the same substrate with draft-first prompting when cost matters, or the naive
+interface when only coverage matters.
+
 ## 6. Ablation summary (every measured change, in order)
 
 | # | change | deciding numbers (per bucket where relevant) | verdict |

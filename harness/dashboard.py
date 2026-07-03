@@ -48,7 +48,7 @@ VERDICTS = {
     "unified": ("REVERTED",
         "A15 draft-first @ haiku: .40/.18/.22 vs winner .70/.525/.425 — interaction style must match policy capability; frozen config stands (pre-registered rule)"),
     "unified_sonnet": ("annex",
-        "A15 draft-first @ sonnet-5: measuring — completes the policy x interaction-style matrix"),
+        "A15 draft-first @ sonnet-5: .92/.85/.75 — closes ~half the incremental gap, still below naive; matrix diagonal confirmed"),
     "team_k3": ("REVERTED",
         "hard70: .32 vs solo .40 at equal wall; 114/140 problems don't decompose — relay overhead, zero complementarity"),
 }
