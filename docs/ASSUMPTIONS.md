@@ -204,3 +204,14 @@ session init + gate) planned as the dune-project infrastructure deliverable,
 demonstrated on one dune-built project if time permits. Honest expectation:
 absolute solve rates on ssreflect will be low for this policy; the interface
 A/Bs (ctx_full vs ctx_lean; vs naive baseline) remain valid comparisons.
+
+## A22 — False-winner bug in auto_close (found by rung-9 smoke, 2026-07-03)
+`auto`-style no-op-tolerant tactics "succeed" without progress, so
+auto_close's ran-without-error winner check committed useless sentences and
+told the agent the goal closed (the truthful goal render followed, limiting
+harm). Consequences: the rung-7 mechanism stat ("71 % of calls close a goal",
+top winner `auto with real arith` 46/64) was inflated by fake wins and is
+retracted in the report; rung-7's KEEP verdict is unaffected (pass@1 measured
+end-to-end). Fix: winner requires goal-count decrease or completion, in both
+session server and team daemon. Measured as rung 9a (winner_autofix) before
+rung 9b (hint synthesis) so the two effects are separable.

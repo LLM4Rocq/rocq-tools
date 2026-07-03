@@ -349,7 +349,12 @@ let op_auto_close t agent =
             ~qed_timeout_s:(Lazy.force auto_timeout) st cand
         in
         match stop with
-        | D.Done when steps <> [] -> winner := Some (cand, steps)
+        | D.Done when steps <> [] ->
+            let last = List.nth steps (List.length steps - 1) in
+            if
+              (not (D.proof_open last.D.post))
+              || D.n_goals last.D.post < D.n_goals st
+            then winner := Some (cand, steps)
         | _ -> ())
     portfolio;
   match !winner with

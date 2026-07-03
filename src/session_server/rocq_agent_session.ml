@@ -286,9 +286,29 @@ let r_vars_of_state st =
       |> List.concat
       |> fun l -> List.filteri (fun i _ -> i < 4) l (* bound the blow-up *)
 
-let synth_candidates vars =
+(* powers in the conclusion: x^6 suggests the (x^3 ± 1)^2 / (x^3 ± y^3)^2
+   family — the classic nra hint for even-power goals *)
+let power_terms concl =
+  let re = Str.regexp "\\([A-Za-z_][A-Za-z0-9_']*\\) *\\^ *\\([0-9]+\\)" in
+  let rec go i acc =
+    match Str.search_forward re concl i with
+    | exception Not_found -> acc
+    | j ->
+        let v = Str.matched_group 1 concl and p = int_of_string (Str.matched_group 2 concl) in
+        go (j + 1) (if p >= 2 then (v, p) :: acc else acc)
+  in
+  go 0 []
+  |> List.sort_uniq compare
+  |> List.concat_map (fun (v, p) ->
+         let h = p / 2 in
+         if h >= 1 then
+           [ Printf.sprintf "%s^%d - 1" v h; Printf.sprintf "%s^%d + 1" v h ]
+         else [])
+  |> fun l -> List.filteri (fun i _ -> i < 4) l
+
+let synth_candidates ?(extra_terms = []) vars =
   let sq t = Printf.sprintf "assert (0 <= (%s)^2) by (apply pow2_ge_0)." t in
-  let singles = List.map (fun v -> sq v) vars in
+  let singles = List.map (fun v -> sq v) (vars @ extra_terms) in
   let rec pairs = function
     | [] -> []
     | x :: rest ->
@@ -308,10 +328,15 @@ let auto2_scripts st =
   if not (Lazy.force auto2_on) then []
   else
     let vars = r_vars_of_state st in
+    let extra_terms =
+      match D.first_goal_view st with
+      | Some (_, concl, _) -> power_terms concl
+      | None -> []
+    in
     List.concat_map
       (fun prefix ->
         [ prefix ^ " nra."; prefix ^ " psatz R 3." ])
-      (synth_candidates vars)
+      (synth_candidates ~extra_terms vars)
     |> List.filteri (fun i _ -> i < 12)
 
 (* ---- rung 8: did-you-mean suggestions on unknown references ----------- *)
@@ -811,7 +836,16 @@ let auto_close_tool : M.tool =
                   D.exec_text ~timeout_s:tmo ~qed_timeout_s:tmo st cand
                 in
                 match stop with
-                | D.Done when steps <> [] -> winner := Some (cand, steps)
+                | D.Done when steps <> [] ->
+                    (* no-op-tolerant tactics (auto, ring_simplify, ...)
+                       "succeed" without progress: require the goal count to
+                       actually drop (or the proof to close) to win *)
+                    let last = List.nth steps (List.length steps - 1) in
+                    if
+                      (not (D.proof_open last.D.post))
+                      || D.n_goals last.D.post < D.n_goals st
+                    then winner := Some (cand, steps)
+                    else tried := cand :: !tried
                 | _ -> tried := cand :: !tried
               end)
             cands;
@@ -842,8 +876,8 @@ let auto_close_tool : M.tool =
                 Printf.sprintf
                   "no finisher applies (tried %d: %s). Do structural work \
                    (intros / destruct / assert a helper fact) and try again."
-                  (List.length portfolio)
-                  (String.concat " " (List.map first_word portfolio))
+                  (List.length cands)
+                  (String.concat " " (List.map first_word cands))
           in
           M.text_result body
             ~log:
