@@ -160,3 +160,19 @@ detected DECOMPOSABLE-problem manifest — addressing the honest gap in the
 team negative result; pass@k scaling on hard at N=8). Jul 6: consolidation +
 full report. Jul 7: buffer + clean end. Held-out protocol unchanged (already
 executed; one shot, spent on the frozen config).
+
+## A19 — Pre-registered SOTA predictions (written BEFORE rocq_mcp_dev60 ran)
+Design analysis of rocq-mcp v0.3.1 against our measured ablations predicts,
+for dev60 @ claude-haiku-4-5, identical budgets/gate:
+(1) pass@1 strictly between baseline (.44/.25/.30) and session_try
+    (.65/.375/.375) in every bucket — warm interactive sessions (their
+    rocq_start/rocq_check ≈ our kept session rung) but no machine-enumerated
+    portfolio (our largest single gain), no error-payload hints, and
+    step_multi requires a commit round-trip (turn cost).
+(2) Their pull-based info tools (rocq_query/toc/notations/assumptions/diag)
+    show the search-tool signature: meaningful adoption, no rescue effect.
+(3) Turns/attempt higher than winner's at similar wall (more round-trips).
+Convergences noted for the report: interactive state-id sessions, multi-
+tactic testing, goals-at-error — independent replication of 3 of our kept
+design pressures. Their workspace/multi-file tools target a regime our
+experiment does not measure (honest scope limit).
