@@ -54,6 +54,8 @@ VERDICTS = {
     "winner_autofix": ("annex",
         "rung 9a bugfix: metrics unchanged within noise; kept on correctness grounds"),
     "winner_auto2": ("annex", "rung 9b: hint-term synthesis — measuring"),
+    "rocq_mcp_sonnet": ("annex",
+        "SOTA @ sonnet: .825/.725/.725 — trails naive AND our substrate in every bucket at highest cost"),
     "rocq_mcp": ("annex",
         "SOTA @ haiku: .45/.225/.225 = baseline-level despite heavy interactive-tool use — turn-compression is the differentiator (REPORT)"),
     "team_k3": ("REVERTED",

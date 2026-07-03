@@ -292,6 +292,13 @@ session_try"); the honest miss makes the mechanism more interesting:
 (Caveat: per-call `tool_calls` in our records under-counts for this config —
 only the sidecar logs; usage above is from transcripts.)
 
+**SOTA at the strong policy** (`rocq_mcp_sonnet_dev60`, user-requested):
+pass@1 .825/.725/.725 (e/m/h) — trails sonnet-naive (.925/.95/.80) and our
+substrate's best (.95/.85/.75) in every bucket, at the highest cost of any
+sonnet condition ($.087–.168/attempt). The SOTA toolset underperforms under
+BOTH policies measured: the deficit is the toolset's information-per-turn,
+not the driver's capability.
+
 ### Rung 9a (A22 bugfix) — run `winner_autofix_dev60`
 
 pass@1 .650/.450/.450 (e/m/h) vs the buggy-binary winner .700/.525/.425
