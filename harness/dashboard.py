@@ -58,6 +58,8 @@ VERDICTS = {
         "SOTA @ sonnet: .825/.725/.725 — trails naive AND our substrate in every bucket at highest cost"),
     "rocq_mcp": ("annex",
         "SOTA @ haiku: .45/.225/.225 = baseline-level despite heavy interactive-tool use — turn-compression is the differentiator (REPORT)"),
+    "sonnet_native_auto2": ("annex",
+        "synthesis @ sonnet (1 rep): 1.00/.85/.85 — hard BEATS naive (.85 vs .80); synthesis transfers across policies"),
     "team_k3": ("REVERTED",
         "hard70: .32 vs solo .40 at equal wall; 114/140 problems don't decompose — relay overhead, zero complementarity"),
 }

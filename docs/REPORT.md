@@ -250,9 +250,14 @@ pass@1 easy/medium/hard, dev60, 2 reps (4 for the bolded winners):
 | incremental (session+try+hints+auto+sugg) | **.70 / .525 / .425** | .925 / .825 / .70 |
 | draft-first on the session substrate (unified) | .40 / .18 / .22 | .92 / .85 / .75 |
 | + persistence prompting (sonnet_native) | — | .95 / .85 / .75 |
+| + hint synthesis (sonnet_native_auto2, 1 rep) | — | **1.00 / .85 / .85** |
 
 The matrix is diagonal: each policy's best interface differs, and mismatches
-cost 10–34 pp. Persistence prompting (removing the weak-policy give-up
+cost 10–34 pp. **Hint synthesis transfers across policies**: at sonnet it
+lifts hard to .85 — ABOVE naive's .80, the first substrate config to beat
+naive on hard at the strong policy (easy perfect at 1.00; medium .85 vs
+naive's .95 is the last naive advantage anywhere; 1-rep caveat, n=20/bucket).
+Persistence prompting (removing the weak-policy give-up
 discipline; sonnet_native) recovered the session substrate's easy bucket to
 .95 — BEATING naive's .925 at less than half the cost ($.041 vs $.087/attempt)
 — and confirmed the early-quit diagnosis there; the residual medium (−.10) and
