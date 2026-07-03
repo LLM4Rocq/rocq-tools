@@ -131,6 +131,8 @@ def run_attempt(cfg, rec, rep, run_dir, run_id):
         "ROCQ_LOG_META": json.dumps(meta),
         **cfg["server"].get("env", {}),
     }
+    if rec.get("rocq_args"):
+        denv["ROCQ_INIT_ARGS"] = "\n".join(rec["rocq_args"])
     t0 = time.time()
     total_budget = cfg["attempt_timeout_s"]
     daemon = subprocess.Popen([daemon_cmd], env=denv,
@@ -222,7 +224,11 @@ def run_attempt(cfg, rec, rep, run_dir, run_id):
                     "recompile_s": None, "detail": None}
 
     daemon_ops = [r for r in common.read_jsonl(server_log) if r.get("kind") == "daemon_op"]
-    tot = lambda key: sum((u.get(key) or 0) for u in usages.values() if isinstance(u, dict))
+    def tot(key, skip_none=False):
+        vals = [u.get(key) for u in usages.values() if isinstance(u, dict)]
+        if skip_none:
+            vals = [v for v in vals if v is not None]
+        return sum(v or 0 for v in vals) if vals else None
     record = {
         "ts": t0, "run_id": run_id, "config_id": cfg["config_id"],
         "model": cfg["model"], "problem_id": rec["problem_id"],
@@ -232,7 +238,7 @@ def run_attempt(cfg, rec, rep, run_dir, run_id):
         "wall_s": round(wall_s, 2),
         "attempt_timed_out": wall_s > total_budget,
         "machine_slept": False,
-        "num_turns": tot("num_turns"),
+        "num_turns": tot("num_turns", skip_none=True),
         "tool_calls": len(daemon_ops),
         "usage": {
             "input_tokens": tot("input_tokens"),

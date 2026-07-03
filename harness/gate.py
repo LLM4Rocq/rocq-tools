@@ -66,6 +66,20 @@ def strip_comments(src: str) -> str:
             i += 1
             continue
         if depth > 0:
+            # Rocq recognizes string literals inside comments: "(*" in a
+            # string must not open a nested comment (review finding — the
+            # desync allowed a crafted comment to hide `Admitted`)
+            if c == '"':
+                i += 1
+                while i < n:
+                    if src[i] == '"':
+                        if i + 1 < n and src[i + 1] == '"':
+                            i += 2
+                            continue
+                        i += 1
+                        break
+                    i += 1
+                continue
             if src.startswith("(*", i):
                 depth += 1
                 i += 2
@@ -194,6 +208,12 @@ def check(candidate: str, prefix: str, theorem_name: str, timeout_s: float = 120
             return res
         if unsafe:
             res["reason"] = "unsafe_flags"
+            return res
+        # belt-and-braces: an Admitted/axiomatized TARGET shows up as an
+        # assumption under its own name — never acceptable
+        short = theorem_name.split(".")[-1]
+        if any(a == theorem_name or a.split(".")[-1] == short for a in axioms):
+            res["reason"] = "target_is_axiom"
             return res
     res["solved"] = True
     return res

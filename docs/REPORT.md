@@ -395,6 +395,39 @@ allots test to the frozen config only. The baseline-vs-winner delta is
 established on dev (4 reps, §3) and cross-checked on dev-disjoint sets
 (§dev150, §minif2f_valid).
 
+## 7b. Measurement audit (adversarial review, 31 confirmed findings)
+
+A 43-agent adversarial review of every number-bearing code path confirmed 31
+defects (full verdicts in the workflow journal; the material ones):
+- **Gate soundness hole (critical, FIXED, zero exploitation)**: Rocq lexes
+  string literals inside comments; strip_comments did not — a crafted
+  `(* "(*" *) Admitted.` could pass the gate (reproduced end-to-end by the
+  reviewer). Fixed (comment/string lexer parity + reject when the TARGET
+  appears among its own assumptions). Audit of all 2 267 recorded solved
+  candidates: zero contain admit/Admitted/Axiom tokens — **no reported
+  number was affected**.
+- **Require false-rejects (policy, quantified)**: 20 sound compiling proofs
+  rejected for mid-proof `Require` (18 in the pre-env-v2 miniF2F run ≈ up to
+  +3.7 pp its easy/medium rates) — intentional layer-2 policy, load-bearing
+  for the axiom audit; env-v2 removed the incentive (0 occurrences in frozen
+  / final runs). Effect direction: understates the PRE-v2 baseline, so the
+  env-v2 delta in §5b is, if anything, overstated by ≤3.7 pp.
+- **Sweep resource sampling is machine-wide** (peak RSS/CPU include e.g. the
+  dashboard watcher): RSS columns in §5 are upper bounds; throughput/wall
+  columns are unaffected (process-independent).
+- **Team accounting**: killed agents' turns/cost coerced to 0 (team costs
+  slightly understated); daemon op-counts include queries. Fixed for future
+  runs; direction favors the team condition, which lost anyway.
+- **prover_ms uses wall clock** in servers (sleep-inflatable); machine_slept
+  flagging + caffeinate bounded exposure; per-call p50s (~ms) unaffected.
+- **Killed-attempt token estimates** (151/4 747 transcripts lack result
+  events) use a documented fallback; affects failed-attempt token means only.
+- Assorted minors (pass@k table rendering from first bucket, profile.py
+  timeout fields baseline-only, in-project manifests pinned to mutable
+  checkouts, mathcomp long bucket n=1) — noted, none change any conclusion.
+- Daemon goal-renumbering after sibling merges (would corrupt >2-goal team
+  merges): FIXED before the decomposable team rerun.
+
 ## 8. Threats to validity
 - Policy nondeterminism (no seed control in CLI) → ≥2 reps, variance reported.
 - Shared machine: evals run alone under caffeinate; sleep-contaminated attempts

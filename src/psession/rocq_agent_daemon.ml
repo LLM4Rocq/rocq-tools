@@ -59,6 +59,7 @@ let workdir =
 
 type branch = {
   goal_id : int; (* 1-based index in the trunk's open goals AT BRANCH TIME *)
+  concl : string; (* conclusion digest at branch time, for renumbering *)
   mutable script : string list; (* newest first, incl. the opening "K: {" *)
   mutable bstate : Vernacstate.t;
   mutable closed : bool;
@@ -119,10 +120,29 @@ let write_candidate t =
   output_string oc (t.prefix ^ "\n" ^ String.concat "\n" sentences ^ "\n");
   close_out oc
 
-(* replay a closed branch's script into the trunk *)
+(* replay a closed branch's script into the trunk. Sibling merges renumber
+   goals, so recompute the branch goal's CURRENT position by conclusion
+   digest and rewrite the leading "K: {" selector (review finding). *)
 let merge_branch t (b : branch) =
-  let script = String.concat "\n" (List.rev b.script) in
   let st = trunk_state t in
+  let current_pos =
+    match D.first_goal_view st with
+    | None -> b.goal_id
+    | Some (_, c0, others) ->
+        let concls = c0 :: others in
+        let rec find i = function
+          | [] -> b.goal_id
+          | c :: _ when c = b.concl -> i
+          | _ :: tl -> find (i + 1) tl
+        in
+        find 1 concls
+  in
+  let script =
+    match List.rev b.script with
+    | first :: rest when Str.string_match (Str.regexp "^[0-9]+: {") first 0 ->
+        String.concat "\n" ((Printf.sprintf "%d: {" current_pos) :: rest)
+    | l -> String.concat "\n" l
+  in
   let steps, stop =
     D.exec_text ~timeout_s:(Lazy.force qed_timeout)
       ~qed_timeout_s:(Lazy.force qed_timeout) st script
@@ -218,7 +238,15 @@ let op_focus t agent goal =
       in
       match stop, List.rev steps with
       | D.Done, last :: _ ->
-          let b = { goal_id = goal; script = [ open_txt ]; bstate = last.D.post; closed = false } in
+          let bconcl =
+            match D.first_goal_view st with
+            | Some (_, c0, others) ->
+                (match List.nth_opt (c0 :: others) (goal - 1) with
+                | Some c -> c | None -> "")
+            | None -> ""
+          in
+          let b = { goal_id = goal; concl = bconcl; script = [ open_txt ];
+                    bstate = last.D.post; closed = false } in
           Hashtbl.replace t.branches agent b;
           ok
             (Printf.sprintf "focused on goal %d.\n%s" goal
