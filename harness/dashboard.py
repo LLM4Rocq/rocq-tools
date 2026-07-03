@@ -41,6 +41,10 @@ VERDICTS = {
         "pass@1 up ALL buckets (easy +8 %, med +16 %, hard +13 %); portfolio closes 71 % of calls"),
     "session_try_hints_auto_sugg": ("KEPT",
         "easy +8 %, medium +9 %, hard flat; easy tokens_in −22 % — FINAL SOLO WINNER"),
+    "baseline_sonnet": ("annex",
+        "A10 cross-policy control @ sonnet-5: .925/.95/.80 — near ceiling through the NAIVE interface (3 turns/proof)"),
+    "session_try_hints_auto_sonnet": ("annex",
+        "A10 winner interface @ sonnet-5: solve −10…−12 pp med/hard BUT cost −12…−32 %, wall −28…−36 % — optimal interface is policy-dependent (REPORT §5b)"),
     "team_k3": ("REVERTED",
         "hard70: .32 vs solo .40 at equal wall; 114/140 problems don't decompose — relay overhead, zero complementarity"),
 }
