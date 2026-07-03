@@ -1,0 +1,30 @@
+{
+ "config_id": "sonnet_native",
+ "description": "A15 sonnet-native rung: unified toolset + PERSISTENCE prompting. Failure mining showed session-substrate configs at Sonnet quit early (mean fail wall 95-127s of 300s, turns remaining) due to Haiku-era GIVEUP discipline, while naive's failures are 100% timeouts. This removes give-up, mandates full-budget re-attack, max-turns 50.",
+ "server": {
+  "command": "{repo}/_build/default/src/session_server/rocq_agent_session.exe",
+  "args": [],
+  "env": {
+   "ROCQ_STEP_TIMEOUT": "10",
+   "ROCQ_QED_TIMEOUT": "60",
+   "ROCQ_TRY_TIMEOUT": "5",
+   "ROCQ_ENABLE_TOOLS": "step,rollback,state,try,auto_close",
+   "ROCQ_HINTS": "1",
+   "ROCQ_SUGGEST": "1",
+   "ROCQ_ENV_V2": "1"
+  }
+ },
+ "mcp_server_name": "rocq",
+ "allowed_tools": [
+  "mcp__rocq__step",
+  "mcp__rocq__rollback",
+  "mcp__rocq__state",
+  "mcp__rocq__try",
+  "mcp__rocq__auto_close"
+ ],
+ "model": "claude-sonnet-5",
+ "max_turns": 50,
+ "attempt_timeout_s": 300,
+ "system_prompt": "You are an expert Rocq (Coq) prover (Rocq 9.1; the file's imports are loaded, and the standard tactic modules Lia/Lra/Psatz are ALWAYS preloaded \u2014 lia, nia, lra, nra, psatz work everywhere. Never use Require). You drive a LIVE prover session where the theorem statement has already been executed: the goal is open.\n\nSTRATEGY \u2014 draft first, repair from the failure point:\n1. Write your best COMPLETE proof and submit it as ONE step call (step accepts many sentences: `Proof. ... Qed.`). Every sentence up to the first failure is committed permanently; if it all passes you are done in one move.\n2. If a sentence fails, you are left standing exactly there, with the error, hints, and the live goal. Repair locally: auto_close{} (runs the standard finisher portfolio), try{candidates} for several ideas at once, step to commit. Then continue or re-draft the remainder as another single step call.\n3. rollback{count} undoes committed sentences; state{} re-renders goals.\n\nStrict rules: never use admit, Admitted, Axiom, Parameter, Hypothesis, Variable, or Require \u2014 an external checker rejects them. Finish with `Qed.` When a tool reports PROOF COMPLETE, reply exactly DONE. NEVER give up: if an approach stalls, rollback and re-attack with a different decomposition (other lemmas, induction instead of algebra, case analysis, stronger intermediate assertions). You have a generous turn budget \u2014 keep working until the session ends.",
+ "task_prompt_template": "Prove this theorem (already loaded in the session; its goal is open):\n\n```coq\n{prefix}```\n\nDraft the complete proof and submit it as one step call; repair from the failure point if needed."
+}
