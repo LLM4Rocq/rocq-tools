@@ -1,158 +1,74 @@
 # STATUS — AI-native Rocq tooling experiment
 
-## ★ HELD-OUT RESULT (2026-07-03, single logged run of the frozen config)
-miniF2F **test**: pass@1 **.519 / .127 / .043** (easy/medium/hard), pass@2
-.569/.165/.057; efficiency within ~15 % of dev. Easy & hard transfer from dev;
-medium drops (.30→.13, real split-level gap — honest analysis in REPORT §7).
-Unlock logged 13:57:42; 488/488 attempts clean; zero test influence on design.
+_Last updated: 2026-07-04 01:45 · day 4 of the run (hard stop Jul 7 EOD)_
 
-_Last updated: 2026-07-02 11:15_
+## ★ Headlines
 
-## TL;DR
-**First kept change is a rout.** The persistent in-process session interface
-beats the naive control on every metric in every difficulty bucket:
-pass@1 +30 % on medium & hard (.25→.325), output tokens −76…−83 %, cost
-−36…−60 %, wall −42…−70 %, per-interaction prover latency 266 ms → ~1 ms.
-Full A/B in docs/REPORT.md; decision + numbers in DESIGN.md. `session_try`
-(batched speculative tactics) is measuring now (~1.5 h left). No blockers.
+**Held-out (the protocol number)** — single logged run of the frozen config on
+miniF2F test: pass@1 **.519 / .127 / .043** (easy/medium/hard), pass@2
+.569/.165/.057. Unlock 2026-07-03 13:57:42; zero test influence on any
+decision; 488/488 attempts clean.
 
-## Ladder scoreboard (dev60, 2 reps, per-bucket pass@1 easy/med/hard)
-| config | pass@1 | Δ vs predecessor | verdict |
-|---|---|---|---|
-| baseline | .45 / .25 / .25 | — | control |
-| session | .475 / .325 / .325 | +30 % med & hard, −80 % out-tokens | **KEPT** |
-| session_try | .65 / .375 / .375 | easy +37 %, med/hard +15 %, cost flat | **KEPT** |
-| session_try_compact | .625 / .35 / .35 | −2.5 pp everywhere, tokens_in +11 % | REVERTED |
-| session_try_search | .60 / .35 / .40 | noise-level pass@1 (−/−/+), cost −5 %; heavy adoption (324 calls) but zero rescue: 15 % solve with search vs 81 % without (selection) | REVERTED |
-| session_try_hints | queued | error payloads get Lean-ism→Rocq rewrites (targets the 1151× `[ltac_use_default]` parse-error class + Lean tactic names) | — |
+**Recommended configuration (A24, pre-registered worst-case criterion)** —
+`universal`: ONE policy-neutral server (whole-proof `check` with
+repair-from-failure + step/try/auto_close+hint-synthesis + error enrichment +
+env-v2), ONE neutral prompt. It equals or beats the naive interface in
+**every bucket at both measured policies** (1 rep each):
+haiku .650/.600/.500 (best measured) · sonnet **.950/1.000/.800**
+(first substrate config to dominate naive; −40 % wall).
 
-| session_try_hints | .60 / .475 / .375 | medium +27 % (3 strictly-new problems, 0 lost) | **KEPT** |
+**Baseline → best-at-haiku across the ladder**: pass@1 .44/.25/.30 →
+.65/.60/.50, cost −45 %, wall −55 %, prover latency 266 ms → ~1 ms/call.
 
-**Winner:** `session_try_hints`. Confirmations: dev150 (disjoint, clean —
-efficiency transfers, easy solve-rate sample-dependent), miniF2F-valid running.
+## Scoreboard (dev60 pass@1 easy/med/hard unless noted)
+| config | result | verdict |
+|---|---|---|
+| baseline (naive) @ haiku | .44/.25/.30 (4 reps) | control |
+| session | +30 % med/hard, −80 % out-tokens | KEPT |
+| + try | easy +37 %, med/hard +15 % | KEPT |
+| + compact render | −2.5 pp everywhere | REVERTED |
+| + search tool (pull) | adoption w/o rescue | REVERTED |
+| + hints | medium +27 % | KEPT |
+| + auto_close portfolio | all buckets up | KEPT |
+| + did-you-mean (push) | easy +8 %, med +9 % | KEPT |
+| env-v2 (miniF2F axis) | .57/.30/.06 vs .32/.13/.00 | KEPT |
+| rung 9b hint synthesis | medium +28 %; transfers to sonnet (hard .85 > naive .80) | KEPT |
+| rung 10 atlas fixes (auto-Qed, dead tools, search flip) | closed the sonnet medium gap | KEPT |
+| **universal (A24)** | ≥ naive everywhere, both policies | **RECOMMENDED** |
+| team k=3 (hard70 AND decomposable27) | ~½ of solo at equal wall | REVERTED (infra validated) |
+| rocq-mcp SOTA | ≈ baseline @ haiku; trails all @ sonnet | comparison |
+| in-project ctx (A20) | lean holds short at 2.8× fewer tokens; full wins medium | both modes shipped |
+| ssreflect probe | short .50, medium .07 | regime limit, honest |
 
-## Major discovery this afternoon (env v2, A11)
-miniF2F files import only `Reals` → the policy's closers (nra/lra/lia) didn't
-exist in-session there, and agents that `Require`d Psatz "succeeded" in-session
-only to die at the gate — an interface trap. Fixed uniformly (session preload +
-gate/baseline `-ri` injection of the scope-neutral Lia/Lra/Psatz; Require now
-refused with an explanatory error; statement-invariance verified). Gated
-ROCQ_ENV_V2; the in-flight pre-v2 miniF2F run is kept clean as the "before"
-measurement and the v2 rerun is queued as its A/B.
+## Fable-powered quality artifacts (Jul 3 night)
+- **Failure atlas** (docs/FAILURE_ATLAS.md): 43 attempts deep-read; found the
+  Qed-handshake hole (= the entire sonnet incremental gap), dead advertised
+  tools (psatz/csdp, field_simp), Search direction blindness → all fixed as
+  rung 10 and confirmed by measurement within 12 h.
+- **Adversarial measurement review**: 31 confirmed findings; critical gate
+  soundness hole FIXED (comment/string lexer desync) and audited — **0 of
+  2 267 recorded solves affected**; daemon merge-renumbering fixed before it
+  could bite; accounting caveats documented in REPORT §7b.
+- **Sweep correction in progress**: baseline N=4/8 rows were sleep-
+  contaminated AND the old N=1/2 rows carry daytime endpoint load — full
+  4-point curve re-measuring in one consistent night window now.
 
-## Scoreboard additions (2026-07-02 evening/night)
-| config | pass@1 (e/m/h) | Δ vs predecessor | verdict |
-|---|---|---|---|
-| session_try_hints_auto | .65 / .55 / .425 | up ALL buckets; 71 % of portfolio calls close a goal | **KEPT** |
-| session_try_hints_auto_sugg | .70 / .60 / .425 | easy +8 %, med +9 %, hard flat; easy tokens −22 % | **KEPT — FINAL SOLO WINNER** |
-| env-v2 (miniF2F axis) | .57 / .30 / .06 | vs .32 / .13 / .00 pre-v2 | **KEPT** |
+## Infrastructure deliverables beyond the benchmark
+Real-project support (A23): `_CoqProject`/dune load-path discovery
+(`harness/project_args.py`), ROCQ_INIT_ARGS/-Q plumbed through session,
+baseline, gate; validated end-to-end on a dune project (proof using a project
+lemma, gate-verified). Shared-proof daemon + MCP shim (k agents, one proof).
+Dashboard (`logs/dashboard.html`), one-command repro (`repro/setup.sh`).
 
-Solo ladder complete: baseline → session → try → hints → auto_close →
-did-you-mean (+ env-v2), with compact & search as reverted ablations.
-Baseline→winner on dev60: pass@1 .45/.25/.25 → .70/.60/.425.
+## Budget
+Policy spend ≈ $220 total (ladder+confirmations+annexes+SOTA+final).
+Fable: 2 workflows ≈ 3.4 M subagent tokens (atlas + review). Machine: ~60 h.
+Remaining: sweep rerun (running), optional universal 2nd rep, consolidation.
 
-## Night 2→3 results
-- **Winner sweep**: near-linear to N=8 (80 % efficiency, wall flat) vs baseline
-  saturation at N=2 — interface efficiency compounds under parallelism (19×
-  solved-proofs/hour at N=8). REPORT §5.
-- **Sonnet annex (A10)**: the optimal interface is POLICY-DEPENDENT. Sonnet
-  one-shots via the naive interface (+10-12 pp solve rate vs winner interface)
-  while the winner interface cuts its cost 12-32 % and wall 28-36 %. Haiku:
-  winner interface = +25-35 pp capability. REPORT §5b.
-- **Team stack built & smoke-verified** (A12/A13): shared-proof daemon (JSONL-
-  instrumented) + MCP shim + 3-phase orchestrator (coordinator → parallel
-  workers → finisher) under one equal-wall budget; composed candidates pass
-  the standard gate. RUNNING overnight: solo_hard70 → team_k3_hard70 (same 70
-  hard problems, 2 reps, 300 s budget each condition).
-Remaining: solo-vs-team A/B analysis → day-4 plots + report drafting →
-freeze day 5 → single held-out run → final deliverables.
-
-Scalability (baseline, N∈{1,2,4,8}): endpoint-bound — N=1→2 near-linear, then
-throughput flat, wall ×3.2, CPU <8 %, solves lost to timeout-by-queueing.
-Efficient operating point N≈2-4. Full table in REPORT §5.
-
-env-v2 miniF2F A/B mid-run: medium 35 % vs 13 % pre-v2, hard 2 solves vs 0 —
-the import-preload fix is transformative on miniF2F (final numbers pending).
-
-## Auto-chained pipeline (no idle machine time)
-1. RUNNING `session_try_hints_minif2f_valid` (488 attempts, pre-v2 baseline)
-2. → rung-7 `auto_close` A/B on dev60 (portfolio finisher; failure mining: 97 %
-   of failures die at max-turns, closers enumerated manually 1 turn each)
-3. → baseline scalability sweep N ∈ {1,2,4,8}
-4. → env-v2 miniF2F A/B (`session_try_hints_v2_minif2f_valid`)
-Then: rung-8 (did-you-mean, built+smoked), winner sweep, Sonnet cross-policy
-annex (A10, user-requested), freeze day 5 → held-out → report.
-
-## Remote
-Pushed to github.com/LLM4Rocq/rocq-tools branch `agent-tooling` (user-created
-remote); pushing at every checkpoint from now on.
-
-Live view: `logs/dashboard.html` (auto-refreshing; regenerate with
-`python3 harness/dashboard.py --watch`). Task brief: `docs/TASK.md`.
-
-## Environment (recorded)
-- Apple M3 Max, 14 cores, 96 GB RAM, macOS 14.3 · dedicated local opam switch
-- OCaml 5.3.0 · **Rocq 9.1.1** (downgraded from 9.2.0 by the Coquelicot install —
-  accepted, pinned; see A7) · Coquelicot 3.4.4 · mathcomp 2.5.0 · yojson 3.0.0
-- Policy (fixed across all configs): claude CLI 2.1.198 headless,
-  `claude-haiku-4-5`, MCP tools only, ≤30 turns, ≤300 s/attempt
-- Repro: `repro/setup.sh` (fresh switch → pinned install → build → self-test)
-
-## Where things stand
-- [x] MCP server framework (OCaml, JSON-RPC stdio) + JSONL instrumentation
-- [x] Naive baseline config (control): one `check` tool = full `rocq compile`
-- [x] Harness: runner (wall-clock watchdog), layered anti-gaming gate,
-  per-bucket report, monitor, profiler; manifests dev60/dev150/minif2f_valid;
-  held-out test mechanically locked
-- [x] **Session server** (`src/session_server`): prover embedded in-process on
-  the public rocq-runtime API. Sentence-level `step` (good prefix commits,
-  failing sentence reported structurally with goals after last success), O(1)
-  `rollback` (Vernacstate snapshots), `state`, per-sentence timeouts, queries
-  (Search/Check) execute without polluting the proof. Measured: init 215 ms
-  once; 0.4–2 ms per step; ~310 MB RSS per session.
-- [x] **try tool** (`session_try` config): up to 8 candidate scripts evaluated
-  speculatively from the same snapshot in one call; first success auto-commits;
-  per-candidate verdicts + remaining-goal digests.
-- [ ] RUNNING: `baseline_dev60` control (2 reps × 60, parallel=4, caffeinated)
-- [ ] NEXT: session and session_try A/Bs on dev60; then compact-state and
-  search ladder rungs; scalability sweep; freeze; held-out.
-
-## Profiling so far (easy bucket, first control attempt — full numbers when run completes)
-- Prover time = 6% of wall; model API ≈ 90%. **Turns and output tokens are the
-  bottleneck, not compile seconds** (H1 partially refuted — timeouts did not
-  bite on easy; recheck on medium/hard).
-- Failed-check taxonomy: syntax 128 / unknown_ref 43 / other 59 → the policy
-  burns whole turns learning one token was invalid Rocq. Sentence-level
-  feedback + batched try target exactly this.
-- Input tokens grow ~330/turn (quadratic-ish context growth confirmed, small in
-  absolute terms on easy).
-
-## Incidents (all diagnosed, fixed, logged)
-1. **rocqworker leak**: `rocq compile`'s worker re-groups itself → escaped
-   group-kill on timeout, pinned a core for 19 min. Fix: descendant-tree kill.
-2. **"Timeout that never fired" = laptop sleep**: monotonic clocks pause during
-   macOS sleep; wall clock doesn't. Fix: wall-clock watchdog + `machine_slept`
-   flag; evals run under `caffeinate`.
-3. Coquelicot not in default opam repo → repos added switch-scoped; solver
-   downgraded Rocq 9.2→9.1.1 (accepted, pinned).
-4. **Lid-close sleep beat caffeinate mid-control**: 16 easy-rep1 attempts
-   killed on wake; detected by the sleep flag, quarantined
-   (results.quarantine.jsonl), redone via resumable repair (harness/repair_run.py).
-5. **UTF-8 truncation bug**: OCaml `truncate` split codepoints in logged agent
-   text (Lean-isms like `⟨?_⟩`) → a few session_try attempts crashed record
-   parsing. Fixed both sides (codepoint-safe truncate, byte-tolerant reader);
-   affected slots will be repaired after the run.
-
-## Budget tracking
-- Spend so far: ≈ $21 (control $11.7 incl. repair, session $6.8, smokes/probes
-  ~$1.5, session_try in flight). Well within reason for the value.
-- Wall-clock: mid day 2 of 5, ahead of plan (first kept change already locked).
-
-## Decisions / assumptions since last check-in
-A7 updated (Rocq 9.1.1), A8 (proof-region discipline), A9 (miniF2F tier→bucket
-mapping). Query sentences excluded from committed proofs (session semantics).
-Efficiency metrics measured at parallel=4 for every config (fixed); scalability
-axis varies N separately.
+## Plan to close (Jul 4–7)
+Jul 4: finish sweep correction → REPORT §5 rewrite; full report coherence
+pass; DESIGN final read. Jul 5: universal 2nd rep (if pool allows), figures,
+report freeze. Jul 6–7: buffer + final push, clean end.
 
 ## Needs your input
 _(empty — nothing blocking)_
