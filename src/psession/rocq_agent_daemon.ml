@@ -336,8 +336,8 @@ let op_step t agent text =
 
 let op_auto_close t agent =
   let portfolio =
-    [ "lra."; "lia."; "nra."; "nia."; "field_simp. lra."; "field_simp. nra.";
-      "ring."; "ring_simplify. lra."; "psatz R 3."; "auto with real arith." ]
+    [ "lra."; "lia."; "nra."; "nia."; "field."; "intros. nra.";
+      "ring."; "ring_simplify. lra."; "ring_simplify. nra."; "auto with real arith." ]
   in
   let st = cur_state_for t agent in
   let winner = ref None in

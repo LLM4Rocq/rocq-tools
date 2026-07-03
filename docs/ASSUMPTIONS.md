@@ -237,3 +237,15 @@ both interaction styles are first-class in ONE server; (2) neutral prompt
 best worst-case across measured policies (extends A15's pre-registration).
 Validation: `universal` (haiku) + `universal_sonnet`, 1 rep each, queued
 after the trimmed queue.
+
+## A25 — Atlas-derived fixes (rung 10, Jul 4 ~00:15)
+From docs/FAILURE_ATLAS.md: (1) auto-Qed handshake — any tool leaving zero
+open goals on an incomplete proof now issues Qed server-side (the missing
+handshake cost 13 attempts = the entire sonnet-incremental gap; agents
+fabricated "PROOF COMPLETE"); (2) dead tools purged — psatz (requires the
+absent csdp binary; ALWAYS failed) and field_simp (Lean-ism, nonexistent)
+removed from portfolio and hint texts, replaced with working closers;
+(3) Search inequality-direction flip-retry (`_ >= 0` patterns found nothing
+though the lemma exists as `0 <= _`). All deterministic, zero-turn. The A24
+universal pair (re)runs on this fixed binary; earlier configs' measured
+numbers stand as recorded (their binaries documented per run_meta git_rev).

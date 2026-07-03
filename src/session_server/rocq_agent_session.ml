@@ -170,6 +170,40 @@ let write_candidate s =
   output_string oc (s.prefix ^ "\n" ^ body ^ "\n");
   close_out oc
 
+(* Atlas fix 1: when a tool leaves zero open goals but the proof is not
+   closed, issue `Qed.` automatically — agents otherwise declare victory and
+   leave no candidate (13 attempts / entire sonnet-incremental gap). *)
+let try_auto_qed s =
+  if s.complete then false
+  else
+    let st = cur_state s in
+    if (not (D.proof_open st)) && s.committed <> [] then begin
+      (* the agent's own text closed the proof (e.g. it ended with Qed) *)
+      s.complete <- true;
+      write_candidate s;
+      true
+    end
+    else if D.proof_open st && D.n_goals st = 0 then begin
+      let steps, stop =
+        D.exec_text ~timeout_s:(Lazy.force qed_timeout)
+          ~qed_timeout_s:(Lazy.force qed_timeout) st "Qed."
+      in
+      match stop with
+      | D.Done when steps <> [] ->
+          List.iter
+            (fun (x : D.exec_step) ->
+              if not x.D.is_query then s.committed <- (x.D.text, x.D.post) :: s.committed)
+            steps;
+          if not (D.proof_open (cur_state s)) then begin
+            s.complete <- true;
+            write_candidate s;
+            true
+          end
+          else false
+      | _ -> false
+    end
+    else false
+
 let fmt_msgs msgs =
   match msgs with
   | [] -> ""
@@ -184,10 +218,10 @@ let hints_on =
   lazy (match Sys.getenv_opt "ROCQ_HINTS" with Some "1" -> true | _ -> false)
 
 let lean_tactic_map =
-  [ ("norm_num", "try `lra`, `field_simp. lra.`, or `nra`");
+  [ ("norm_num", "try `lra`, `field. lra.`, or `nra`");
     ("omega", "use `lia`");
     ("linarith", "use `lra`");
-    ("nlinarith", "use `nra` or `psatz R 2`");
+    ("nlinarith", "use `nra`");
     ("nlra", "use `nra`");
     ("ring_nf", "use `ring_simplify`");
     ("simp", "use `simpl`, `cbn`, or a targeted `rewrite`");
@@ -479,11 +513,13 @@ let step_tool : M.tool =
               let all_msgs =
                 List.concat_map (fun (x : D.exec_step) -> x.msgs) steps
               in
+              let auto_qed = try_auto_qed s in
+              ignore auto_qed;
               let now = cur_state s in
               let body =
                 match stop with
                 | D.Done ->
-                    if not (D.proof_open now) && n_ok > 0 then begin
+                    if s.complete && n_ok > 0 then begin
                       s.complete <- true;
                       write_candidate s;
                       Printf.sprintf
@@ -667,10 +703,8 @@ let try_tool : M.tool =
                            if not x.D.is_query then
                              s.committed <- (x.D.text, x.D.post) :: s.committed)
                          steps;
-                       if complete then begin
-                         s.complete <- true;
-                         write_candidate s
-                       end
+                       ignore complete;
+                       ignore (try_auto_qed s)
                    | _ -> ())
                  outcomes);
             let seen_hints = Hashtbl.create 4 in
@@ -766,6 +800,21 @@ let search_tool : M.tool =
             let st = cur_state s in
             let t0 = Unix.gettimeofday () in
             let steps, stop = D.exec_text ~timeout_s:10. ~qed_timeout_s:10. st q in
+            (* atlas fix 3: inequality-direction blindness — empty result on a
+               `>=`/`>` pattern retries the flipped form *)
+            let steps, stop =
+              let empty =
+                stop = D.Done
+                && List.for_all (fun (x : D.exec_step) -> x.D.msgs = []) steps
+              in
+              if empty && (String.length q > 0) && String.contains q '>' then begin
+                let flip a b str = Str.global_replace (Str.regexp_string a) b str in
+                let q2 = flip ">=" "<=" (flip "> " "< " q) in
+                if q2 <> q then D.exec_text ~timeout_s:10. ~qed_timeout_s:10. st q2
+                else (steps, stop)
+              end
+              else (steps, stop)
+            in
             let prover_ms = (Unix.gettimeofday () -. t0) *. 1000. in
             let body =
               match stop with
@@ -794,9 +843,12 @@ let search_tool : M.tool =
 
 (* ---- rung 7: auto_close — server-side finishing portfolio ------------- *)
 
+(* Atlas fix 2: psatz removed (requires the external csdp binary, absent on
+   this machine — it ALWAYS failed); field_simp removed (Lean-ism, does not
+   exist in Rocq). Replaced with working closers. *)
 let portfolio =
-  [ "lra."; "lia."; "nra."; "nia."; "field_simp. lra."; "field_simp. nra.";
-    "ring."; "ring_simplify. lra."; "psatz R 3."; "auto with real arith." ]
+  [ "lra."; "lia."; "nra."; "nia."; "field."; "intros. nra.";
+    "ring."; "ring_simplify. lra."; "ring_simplify. nra."; "auto with real arith." ]
 
 let auto_timeout = lazy (getenv_f "ROCQ_AUTO_TIMEOUT" 2.)
 
@@ -858,16 +910,12 @@ let auto_close_tool : M.tool =
                     if not x.D.is_query then
                       s.committed <- (x.D.text, x.D.post) :: s.committed)
                   steps;
-                let last = List.nth steps (List.length steps - 1) in
-                let closed_all = not (D.proof_open last.D.post) in
-                if closed_all then begin
-                  s.complete <- true;
-                  write_candidate s;
+                ignore (try_auto_qed s);
+                if s.complete then
                   Printf.sprintf
                     "`%s` closes it — COMMITTED.\nPROOF COMPLETE — the file is \
                      saved. Reply DONE."
                     cand
-                end
                 else
                   Printf.sprintf "`%s` closes the current goal — COMMITTED.\n%s"
                     cand
@@ -939,13 +987,12 @@ let check_tool : M.tool =
                   if not x.D.is_query then
                     s.committed <- (x.D.text, x.D.post) :: s.committed)
                 steps;
+              ignore (try_auto_qed s);
               let now = cur_state s in
               let n_ok = List.length steps in
               let body =
                 match stop with
-                | D.Done when (not (D.proof_open now)) && n_ok > 0 ->
-                    s.complete <- true;
-                    write_candidate s;
+                | D.Done when s.complete && n_ok > 0 ->
                     "PROOF COMPLETE — the file is saved. Reply DONE."
                 | D.Done ->
                     Printf.sprintf
