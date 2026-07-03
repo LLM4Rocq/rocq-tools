@@ -492,11 +492,28 @@ def build():
         + "</td></tr>"
         for cfg, d in rej.items())
 
+    # per-SOLVE economics: mean-per-attempt / pass@1 = expected spend per
+    # solved proof, failed attempts included (undefined where pass@1 = 0)
+    stats_per_solve = {}
+    for cfg, st in stats_by_cfg.items():
+        d = {}
+        for b, x in st.items():
+            p1 = x.get("pass@1") or 0
+            if p1 > 0:
+                ti = (x.get("tokens_in_mean") or 0) + (x.get("tokens_out_mean") or 0)
+                d[b] = {
+                    "tokens_per_solve": ti / p1,
+                    "cost_per_solve": (x.get("cost_usd_mean") or 0) / p1,
+                    "wall_per_solve": (x.get("wall_s_mean") or 0) / p1,
+                }
+            else:
+                d[b] = {}
+        stats_per_solve[cfg] = d
     minis = "".join(
-        mini_line(t, stats_by_cfg, k, f) for t, k, f in [
-            ("output tokens / attempt", "tokens_out_mean", lambda v: f"{v/1000:.1f}k"),
-            ("cost $ / attempt", "cost_usd_mean", lambda v: f"{v:.3f}"),
-            ("wall s / attempt", "wall_s_mean", lambda v: f"{v:.0f}"),
+        mini_line(t, stats_per_solve, k, f) for t, k, f in [
+            ("total tokens / solve", "tokens_per_solve", lambda v: f"{v/1000:.0f}k"),
+            ("cost $ / solve", "cost_per_solve", lambda v: f"{v:.2f}"),
+            ("wall s / solve", "wall_per_solve", lambda v: f"{v:.0f}"),
         ])
 
     updated = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -520,7 +537,7 @@ def build():
 <details><summary>table view</summary>
 {stats_table(stats_by_cfg, ["pass@1", "solved", "attempts"])}</details></div>
 
-<h2>Efficiency across ladder steps (x = ladder step, in scoreboard order)</h2>
+<h2>Efficiency per SOLVED proof across ladder steps (metric ÷ pass@1; failed attempts included; x = ladder step)</h2>
 <div class="card">{legend_html()}{minis}
 <details><summary>table view</summary>
 {stats_table(stats_by_cfg, ["tokens_out_mean", "cost_usd_mean", "wall_s_mean", "tool_calls_mean"])}</details></div>
