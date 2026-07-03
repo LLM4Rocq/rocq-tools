@@ -53,6 +53,14 @@ Gate rejections: no_candidate 74, prefix_modified 6, admit/Admitted 2 — the
 anti-gaming gate rejected 8 would-be "solves" that in-session compile accepted.
 (16 sleep-contaminated attempts quarantined and redone; see incident log.)
 
+**4-rep update (variance top-up, 2026-07-03)** — control and final winner were
+extended to 4 reps for tighter estimates (columns easy/medium/hard):
+baseline pass@1 .438/.250/.300 (rep_std .05/.04/.08), pass@4 .50/.30/.40;
+winner pass@1 .700/.525/.425 (rep_std .00/.09/.03), pass@4 .70/.65/.50.
+Medium's 2-rep winner estimate (.60) was mildly favorable; .525 supersedes it.
+Baseline→winner deltas at 4 reps: easy +26 pp, medium +28 pp, hard +13 pp —
+all well beyond rep noise.
+
 ### session vs baseline — run `session_dev60` — **KEPT**
 
 pass@1: easy .475 (+.025), medium .325 (+.075, +30 %), hard .325 (+.075, +30 %);
