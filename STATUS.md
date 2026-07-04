@@ -49,9 +49,11 @@ haiku .650/.600/.500 (best measured) · sonnet **.950/1.000/.800**
   soundness hole FIXED (comment/string lexer desync) and audited — **0 of
   2 267 recorded solves affected**; daemon merge-renumbering fixed before it
   could bite; accounting caveats documented in REPORT §7b.
-- **Sweep correction in progress**: baseline N=4/8 rows were sleep-
-  contaminated AND the old N=1/2 rows carry daytime endpoint load — full
-  4-point curve re-measuring in one consistent night window now.
+- **Sweep corrected (REPORT §5)**: the original "baseline saturates at N=2,
+  wall ×3.2" was a sleep artifact on a daytime-load confound. Clean single-
+  window data: BOTH configs scale healthily (efficiency at N=8: winner 80 %
+  vs baseline 72 %); the winner's parallel advantage is its ~2.7× per-attempt
+  speed level → ≈6× solved-throughput at N=8 (the earlier 19× is retracted).
 
 ## Infrastructure deliverables beyond the benchmark
 Real-project support (A23): `_CoqProject`/dune load-path discovery
