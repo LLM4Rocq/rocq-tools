@@ -223,6 +223,22 @@ let goals_json t =
 let op_focus t agent goal =
   if t.complete then err "proof already complete"
   else begin
+    (* conflict prevention: refuse goals already owned by another live agent
+       (previously two agents could both claim a goal; the loser's merge then
+       landed on a vanished goal) *)
+    let owned_by_other =
+      Hashtbl.fold
+        (fun a (b : branch) acc ->
+          if a <> agent && (not b.closed) && b.goal_id = goal then Some a
+          else acc)
+        t.branches None
+    in
+    match owned_by_other with
+    | Some other ->
+        err
+          (Printf.sprintf
+             "goal %d is already owned by agent %s — pick another goal (see               goals) or work on the main proof" goal other)
+    | None ->
     (match Hashtbl.find_opt t.branches agent with
     | Some b when not b.closed -> Hashtbl.remove t.branches agent
     | _ -> ());
