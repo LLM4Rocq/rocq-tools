@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [main, agent-tooling]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3"
+          dune-cache: true
+      - name: Install dependencies (rocq-runtime build is slow on cold cache)
+        run: |
+          opam install . --deps-only --with-test --yes
+          opam install rocq-stdlib --yes
+      - name: Build
+        run: opam exec -- dune build
+      - name: Test suite (4 suites, 95 checks)
+        run: opam exec -- dune runtest

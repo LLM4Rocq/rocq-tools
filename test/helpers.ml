@@ -40,7 +40,12 @@ let repo_root =
 let opam_bin =
   Filename.concat (Filename.dirname repo_root) "_opam/bin"
 
-let base_path = opam_bin ^ ":/usr/bin:/bin"
+(* prefer the sibling _opam layout used in development; on CI (or any
+   installed layout) fall back to the inherited PATH, which must contain
+   rocq *)
+let base_path =
+  if Sys.file_exists opam_bin then opam_bin ^ ":/usr/bin:/bin"
+  else (try Sys.getenv "PATH" with Not_found -> "/usr/bin:/bin")
 
 let exe name = Filename.concat repo_root ("_build/default/" ^ name)
 
