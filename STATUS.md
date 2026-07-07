@@ -74,7 +74,19 @@ overnight autonomous pipelines · every number's provenance in logs/ + git.
   process. Warm-pool forking across processes = documented next step.
 - **CI**: GitHub Actions builds + runs the full suite on push/PR
   (.github/workflows/ci.yml); test PATH resolution made portable.
-- **Merged to `main`** (default-branch switch left to the owner).
+- **Merged to `main`**; **CI GREEN on both branches** (GitHub Actions:
+  full build + 101-check suite on every push, ~12 min warm). Cold-path
+  install verified: `opam pin add rocq-tools <github-url>` builds and
+  installs a working `rocq-mcp` (the uncommitted-opam-file and
+  rocq-runtime-9.2-API failures were found and fixed by exactly this test).
+- **A31 adversarial product review**: 24 confirmed findings; criticals
+  (exemplar leak after `open`) and memoization staleness/truncation fixed
+  and repro-verified; discovery/daemon/open majors fixed; 7 minors
+  documented as accepted.
+- **A32 mathcomp algebra-tactics conditional** (user suggestion): verified
+  capability (`by lia` closes ssrnat goals), regime-gated, no benchmark
+  lift at the weak policy — the structural-competence boundary confirmed a
+  fourth time.
 - Test suite: 4 suites, all green (~100 checks incl. A13 memoization).
 
 ## Needs your input
