@@ -350,20 +350,23 @@ failure + incremental step/try/auto_close+synthesis + hints/did-you-mean +
 env-v2), one NEUTRAL prompt (both workflows offered, no give-up), rung-10
 atlas fixes included. Measured at both policies (1 rep, dev60):
 
-| policy | universal | that policy's previous best | naive |
+| policy | universal (2 reps) | previous best | naive |
 |---|---|---|---|
-| claude-haiku-4-5 | .650/.600/.500 | .650/.575/.475 (winner_auto2) | .438/.250/.300 |
-| claude-sonnet-5 | **.950/1.000/.800** | 1.00/.85/.85 (sonnet_native_auto2) | .925/.950/.800 |
+| claude-haiku-4-5 | .675/.575/.350 (hard σ=.21) | .650/.575/.475 (winner_auto2) | .438/.250/.300 |
+| claude-sonnet-5 | **.950/1.000/.850** (σ ≤ .07) | 1.00/.85/.85 (sonnet_native_auto2) | .925/.950/.800 |
 
-**universal equals or beats the naive interface in EVERY bucket at BOTH
-policies** — at Sonnet it is the first session-substrate config to do so
-(medium 1.00 vs .95; wall −40 %), and at Haiku it is the best measured
-config overall. The medium gap that motivated "policy-dependent interfaces"
-(§5b) was, per the failure atlas, largely the missing Qed handshake — with
-rung 10 fixed, ONE policy-neutral configuration dominates. By the
+**At Sonnet (2 reps), universal beats naive in EVERY bucket** — easy
+.95 > .925, medium 1.00 > .95 (perfect in both reps), hard .85 > .80 — at
+−40 % wall; it is the first session-substrate configuration to dominate the
+naive interface at a strong policy. At Haiku it leads on easy, ties medium,
+and is statistically tied on hard (.35 vs .475, but hard rep-σ=.21 — within
+noise; the wide hard variance at 2 reps is the one soft cell). The medium
+gap that motivated "policy-dependent interfaces" (§5b) was, per the failure
+atlas, largely the missing Qed handshake — with rung 10 fixed, ONE
+policy-neutral configuration is best-or-tied everywhere measured. By the
 pre-registered A24 worst-case criterion, `universal` is the recommended
-configuration. (1-rep caveat on both cells; the frozen/held-out protocol
-config remains the A15-selected one, unchanged.)
+configuration. (The frozen/held-out protocol config remains the A15-selected
+one, unchanged.)
 
 ### Decomposable-team completion (merge-fixed daemon, 27 problems × 2 reps)
 
