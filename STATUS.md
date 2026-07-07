@@ -21,12 +21,12 @@ mechanically-logged unlock): pass@1 .519/.127/.043 on miniF2F test.
   per-bucket numbers, corrected scalability (§5, with retractions), annexes
   (cross-policy, SOTA, teams, in-project context, ssreflect), held-out (§7),
   measurement audit (§7b), threats, conclusions
-- **Test suite** — `dune runtest`: 4 suites, 67 checks, all green
+- **Test suite** — `dune runtest`: 4 suites, 83 checks, all green (incl. contention/conflict pack)
   (session contracts + atlas/audit regressions; multi-agent daemon incl.
   merge-renumbering; scalability bounds; gate soundness incl. the
   comment-desync exploit)
 - **docs/DESIGN.md** (per-decision rationale) · **docs/FAILURE_ATLAS.md** ·
-  **docs/ASSUMPTIONS.md** (A1–A25) · **docs/TASK.md** (original brief)
+  **docs/ASSUMPTIONS.md** (A1–A26) · **docs/TASK.md** (original brief)
 - **The tool layer**: src/mcp_core, src/session_server (the universal
   surface), src/psession (multi-agent daemon + shim), src/baseline_server,
   src/submit_server; configs/ for every measured condition; configs/FROZEN.md
@@ -41,7 +41,7 @@ the shipped binaries honor every measured contract.
 
 ## Honest boundaries (details in REPORT §8)
 Hard competition problems remain policy-bound (~4-6 % under every design);
-the haiku-hard cell of `universal` is noisy at 2 reps (σ=.21); the team
+universal trails the haiku-tuned config on haiku-hard (.40 vs .475, 4 reps); the team
 pattern is decisively negative at this scale; ssreflect-idiom proving needs
 per-project knowledge distillation (roadmap in DESIGN); two measurement
 claims were publicly retracted after contamination was found (§5).

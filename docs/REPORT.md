@@ -413,15 +413,15 @@ atlas fixes included. Measured at both policies (1 rep, dev60):
 
 | policy | universal (2 reps) | previous best | naive |
 |---|---|---|---|
-| claude-haiku-4-5 | .675/.575/.350 (hard σ=.21) | .650/.575/.475 (winner_auto2) | .438/.250/.300 |
+| claude-haiku-4-5 | .662/.575/.400 (4 reps, hard σ=.14) | .650/.575/.475 (winner_auto2) | .438/.250/.300 |
 | claude-sonnet-5 | **.950/1.000/.850** (σ ≤ .07) | 1.00/.85/.85 (sonnet_native_auto2) | .925/.950/.800 |
 
 **At Sonnet (2 reps), universal beats naive in EVERY bucket** — easy
 .95 > .925, medium 1.00 > .95 (perfect in both reps), hard .85 > .80 — at
 −40 % wall; it is the first session-substrate configuration to dominate the
 naive interface at a strong policy. At Haiku it leads on easy, ties medium,
-and is statistically tied on hard (.35 vs .475, but hard rep-σ=.21 — within
-noise; the wide hard variance at 2 reps is the one soft cell). The medium
+and trails winner_auto2 on hard by .075 at 4 reps (.400±.14 vs .475 — the
+one cell where the Haiku-tuned prompt retains an edge; within ~½σ). The medium
 gap that motivated "policy-dependent interfaces" (§5b) was, per the failure
 atlas, largely the missing Qed handshake — with rung 10 fixed, ONE
 policy-neutral configuration is best-or-tied everywhere measured. By the
@@ -441,9 +441,17 @@ awaiting problems with deeper structure (and stronger coordinators).
 
 short .500 (10/20) · medium .071 (1/14) · long 0/1 — out-of-dialect proving
 degrades gracefully on short lemmas (portfolio closers still fire) and
-collapses where ssreflect idioms dominate; hint tables are stdlib-shaped
-(honest limit; the per-project knowledge-distillation path in DESIGN §evolution
-is the remedy).
+collapses where ssreflect idioms dominate.
+
+**A26 distillation test (negative-to-neutral).** An evidence-mined ssreflect
+hint table (Search-idiom guidance — the corpus's #1 failure at 66 instances —
+stdlib→ssreflect tactic rewrites, name-fragment search advice) plus
+`by []`/`done` portfolio entries, rerun on the same 35 tasks: short .550 vs
+.500 (+1 problem, within n=20 noise), medium unchanged (.071), long 0/1.
+Error-reactive hints do not buy ssreflect proof competence; combined with the
+A20 finding (context value lives in adjacent proof BODIES), the working
+hypothesis for dialect transfer is in-context exemplars, not corrections.
+The gated mechanism ships (zero cost when off; suite-verified).
 
 ## 6. Ablation summary (every measured change, in order)
 
