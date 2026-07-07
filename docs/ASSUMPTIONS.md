@@ -259,3 +259,17 @@ boolean-reflection guidance; stdlib tactics get ssreflect equivalents;
 mathcomp-fragment unknown refs get name-fragment search advice — plus
 `by []`/`done` portfolio entries. Tests the per-project distillation
 mechanism (DESIGN evolution path) with one measured rerun of mathcomp35.
+
+
+## A27 — server-side exemplar retrieval (Jul 7, large-project axis)
+Grounded in A20 (in-project medium wins with adjacent proof BODIES, +12.5pp
+full-vs-lean) but full-file context cannot scale to large projects. New
+mechanism, gated ROCQ_EXEMPLARS=1: at session start the server scans project
+sources (ROCQ_PROJECT_SRC or ROCQ_INIT_ARGS paths), extracts proved
+(statement, proof) pairs comment-stripped, ranks by rare-token (IDF) overlap
+with the theorem statement, and PUSHES the top-3 with proofs into the first
+tool response — zero turns, ~1.5k tokens, any file size, any policy.
+Leak-proofing: for the file the task was cut from, only the region BEFORE
+the prefix end is admissible (the target's own proof is never retrievable).
+Smoke: ltn_exp2r -> {expnI, ltn_pexp2l, leq_pexp2l}. A/B on mathcomp35 at
+haiku + fable vs same configs without.

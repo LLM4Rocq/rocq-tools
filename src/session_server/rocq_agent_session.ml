@@ -900,9 +900,16 @@ let portfolio_base =
     "ring."; "ring_simplify. lra."; "ring_simplify. nra."; "auto with real arith." ]
 
 let portfolio =
-  if Sys.getenv_opt "ROCQ_HINTS_SSR" = Some "1" then
-    "by []." :: "done." :: "by lia." :: portfolio_base
-  else portfolio_base
+  let base =
+    if Sys.getenv_opt "ROCQ_HINTS_SSR" = Some "1" then
+      "by []." :: "done." :: "by lia." :: portfolio_base
+    else portfolio_base
+  in
+  (* counterfactual-replay hook: extra newline-separated finishers *)
+  match Sys.getenv_opt "ROCQ_PORTFOLIO_EXTRA" with
+  | Some s when s <> "" ->
+      base @ List.filter (fun x -> x <> "") (String.split_on_char '\n' s)
+  | _ -> base
 
 let auto_timeout = lazy (getenv_f "ROCQ_AUTO_TIMEOUT" 2.)
 
@@ -1099,6 +1106,237 @@ let state_tool : M.tool =
              (goals_block_full now)));
   }
 
+
+(* ---------- project exemplar retrieval (A27) ----------
+   Grounded in A20: in-project medium proofs win with ADJACENT PROOF BODIES
+   in context (+12.5 pp full-vs-lean on stdlib inproject60), but full-file
+   context cannot scale to large projects. This retrieves the k most
+   statement-similar PROVED lemmas from the project sources and PUSHES them
+   (statement + proof) into the first tool response: zero turns, bounded
+   tokens, any file size, any policy. Gated by ROCQ_EXEMPLARS=1; source dirs
+   from ROCQ_PROJECT_SRC (newline-separated) or the physical paths of
+   ROCQ_INIT_ARGS. *)
+
+let ident_re = Str.regexp "[A-Za-z_][A-Za-z0-9_']*"
+
+let stmt_tokens s =
+  let stop = [ "forall"; "exists"; "fun"; "let"; "in"; "match"; "with"; "end";
+               "Type"; "Prop"; "Set"; "if"; "then"; "else"; "Lemma"; "Theorem";
+               "Fact"; "Corollary"; "Proposition" ] in
+  let out = ref [] in
+  let i = ref 0 in
+  (try
+     while true do
+       let j = Str.search_forward ident_re s !i in
+       let t = Str.matched_string s in
+       i := j + String.length t;
+       if String.length t > 1 && not (List.mem t stop) then out := t :: !out
+     done
+   with Not_found -> ());
+  !out
+
+let exemplar_dirs () =
+  match Sys.getenv_opt "ROCQ_PROJECT_SRC" with
+  | Some s when s <> "" ->
+      List.filter (fun d -> d <> "") (String.split_on_char '\n' s)
+  | _ -> (
+      match Sys.getenv_opt "ROCQ_INIT_ARGS" with
+      | Some s ->
+          let parts = String.split_on_char '\n' s in
+          let rec dirs = function
+            | ("-Q" | "-R") :: path :: _ :: tl -> path :: dirs tl
+            | _ :: tl -> dirs tl
+            | [] -> []
+          in
+          dirs parts
+      | None -> [])
+
+let rec v_files acc depth d =
+  if depth > 6 then acc
+  else
+    match Sys.readdir d with
+    | entries ->
+        Array.fold_left
+          (fun acc e ->
+            let p = Filename.concat d e in
+            if Sys.is_directory p then v_files acc (depth + 1) p
+            else if Filename.check_suffix e ".v" then p :: acc
+            else acc)
+          acc entries
+    | exception Sys_error _ -> acc
+
+let lemma_re =
+  Str.regexp
+    "\\(Lemma\\|Theorem\\|Fact\\|Corollary\\|Proposition\\)[ \\t\\n]"
+
+(* strip (* .. *) comments, string-literal aware (same rule the gate uses) *)
+let strip_comments src =
+  let b = Buffer.create (String.length src) in
+  let n = String.length src in
+  let i = ref 0 and depth = ref 0 in
+  while !i < n do
+    let two = !i + 1 < n in
+    if !depth > 0 then begin
+      if src.[!i] = '"' then begin
+        incr i;
+        while !i < n && src.[!i] <> '"' do incr i done;
+        incr i
+      end
+      else if two && src.[!i] = '(' && src.[!i + 1] = '*' then (incr depth; i := !i + 2)
+      else if two && src.[!i] = '*' && src.[!i + 1] = ')' then (decr depth; i := !i + 2)
+      else incr i
+    end
+    else if two && src.[!i] = '(' && src.[!i + 1] = '*' then (incr depth; i := !i + 2)
+    else begin
+      Buffer.add_char b src.[!i];
+      incr i
+    end
+  done;
+  Buffer.contents b
+
+(* (name-ish statement, proof body) pairs from one file's text *)
+let extract_lemmas raw =
+  let text = strip_comments raw in
+  let out = ref [] in
+  let pos = ref 0 in
+  (try
+     while true do
+       let st = Str.search_forward lemma_re text !pos in
+       (* find end of proof: the next "Qed." after st *)
+       let qed =
+         try Some (Str.search_forward (Str.regexp "Qed\\.") text st)
+         with Not_found -> None
+       in
+       match qed with
+       | None -> raise Not_found
+       | Some q ->
+           let block = String.sub text st (q + 4 - st) in
+           (* split at the Proof-start heuristic: first "Proof" or, failing
+              that, the first ".\n" after the statement head *)
+           let split_at =
+             try Str.search_forward (Str.regexp "Proof\\b") block 0
+             with Not_found -> (
+               try Str.search_forward (Str.regexp "\\.[ \\t]*\\n") block 0 + 1
+               with Not_found -> String.length block)
+           in
+           let stmt = String.trim (String.sub block 0 split_at) in
+           let proof =
+             String.trim (String.sub block split_at (String.length block - split_at))
+           in
+           if String.length stmt > 10 && String.length stmt < 1200
+              && String.length proof < 1500
+           then out := (stmt, proof) :: !out;
+           pos := q + 4
+     done
+   with Not_found -> ());
+  !out
+
+let exemplars_block task_prefix =
+  let dirs = exemplar_dirs () in
+  if dirs = [] then None
+  else begin
+    let files = List.concat_map (v_files [] 0) dirs in
+    let files = List.filteri (fun i _ -> i < 2000) files in
+    let plen = String.length task_prefix in
+    (* collect (stmt, proof, same_file) — for the file the task was cut from,
+       only the region BEFORE the prefix end is admissible (everything after
+       includes the target's own proof: leakage would unground the eval) *)
+    let lemmas =
+      List.concat_map
+        (fun f ->
+          match
+            let ic = open_in_bin f in
+            let n = in_channel_length ic in
+            if n > 1_500_000 then (close_in ic; "")
+            else begin
+              let s = really_input_string ic n in
+              close_in ic; s
+            end
+          with
+          | "" -> []
+          | raw ->
+              let same =
+                String.length raw >= plen && String.sub raw 0 plen = task_prefix
+              in
+              let region = if same then String.sub raw 0 plen else raw in
+              List.map (fun (st, pf) -> (st, pf, same)) (extract_lemmas region)
+          | exception Sys_error _ -> [])
+        files
+    in
+    let dedup l = List.sort_uniq compare l in
+    (* document frequency over lemma statements -> rare-token weighting *)
+    let df = Hashtbl.create 4096 in
+    List.iter
+      (fun (st, _, _) ->
+        List.iter
+          (fun t ->
+            let cur = match Hashtbl.find_opt df t with Some d -> d | None -> 0 in
+            Hashtbl.replace df t (1 + cur))
+          (dedup (stmt_tokens st)))
+      lemmas;
+    let tail =
+      let n = String.length task_prefix in
+      String.sub task_prefix (max 0 (n - 600)) (min n 600)
+    in
+    let task_toks = dedup (stmt_tokens (strip_comments tail)) in
+    let weight t =
+      match Hashtbl.find_opt df t with
+      | Some d -> 1.0 /. log (2.0 +. float_of_int d)
+      | None -> 0.0
+    in
+    let score (stmt, _, same) =
+      let toks = dedup (stmt_tokens stmt) in
+      let shared = List.filter (fun t -> List.mem t task_toks) toks in
+      let base = List.fold_left (fun a t -> a +. weight t) 0.0 shared in
+      if same then base *. 1.5 else base
+    in
+    let ranked =
+      List.stable_sort (fun a b -> compare (score b) (score a)) lemmas
+    in
+    let top = List.filteri (fun i _ -> i < 3) ranked in
+    let top = List.filter (fun x -> score x > 0.8) top in
+    if top = [] then None
+    else
+      Some
+        ("similar PROVED lemmas from this project (style guide — imitate \
+          their tactics and lemma names):\n"
+        ^ String.concat "\n---\n"
+            (List.map
+               (fun (st, pf, _) -> truncate 400 st ^ "\n" ^ truncate 700 pf)
+               top))
+  end
+
+let exemplars_pending : string option ref =
+  ref (match Sys.getenv_opt "ROCQ_EXEMPLARS" with
+       | Some "1" -> Some "" (* computed lazily at first use, after init *)
+       | _ -> None)
+
+let take_exemplars () =
+  match !exemplars_pending with
+  | None -> None
+  | Some _ ->
+      exemplars_pending := None;
+      let s = get_session () in
+      (* the theorem statement = last nonblank chunk of the prefix *)
+      exemplars_block s.prefix
+
+let with_exemplars (t : M.tool) =
+  { t with
+    M.handler =
+      (fun args ->
+        let r = t.M.handler args in
+        match take_exemplars () with
+        | Some block when block <> "" ->
+            let content =
+              match r.M.content with
+              | `Assoc [ ("type", `String "text"); ("text", `String txt) ] :: tl ->
+                  `Assoc [ ("type", `String "text");
+                           ("text", `String (txt ^ "\n\n" ^ block)) ] :: tl
+              | c -> c
+            in
+            { r with M.content }
+        | _ -> r) }
+
 let () =
   let enabled =
     match Sys.getenv_opt "ROCQ_ENABLE_TOOLS" with
@@ -1109,4 +1347,6 @@ let () =
     [ step_tool; rollback_tool; state_tool; try_tool; search_tool;
       auto_close_tool; check_tool ]
   in
-  M.run (List.filter (fun (t : M.tool) -> List.mem t.name enabled) all)
+  M.run
+    (List.map with_exemplars
+       (List.filter (fun (t : M.tool) -> List.mem t.name enabled) all))

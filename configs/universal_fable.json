@@ -1,0 +1,33 @@
+{
+ "config_id": "universal_fable",
+ "description": "A24 policy-neutral candidate: ONE server, style-agnostic surface (whole-proof check + incremental step/try/auto_close+synthesis + repair-from-failure), NEUTRAL prompt (no style forcing, no give-up), selected by best worst-case across policies.",
+ "server": {
+  "command": "{repo}/_build/default/src/session_server/rocq_agent_session.exe",
+  "args": [],
+  "env": {
+   "ROCQ_STEP_TIMEOUT": "10",
+   "ROCQ_QED_TIMEOUT": "60",
+   "ROCQ_TRY_TIMEOUT": "5",
+   "ROCQ_ENABLE_TOOLS": "check,step,rollback,state,try,auto_close",
+   "ROCQ_HINTS": "1",
+   "ROCQ_SUGGEST": "1",
+   "ROCQ_AUTO2": "1",
+   "ROCQ_ENV_V2": "1"
+  }
+ },
+ "mcp_server_name": "rocq",
+ "allowed_tools": [
+  "mcp__rocq__check",
+  "mcp__rocq__step",
+  "mcp__rocq__rollback",
+  "mcp__rocq__state",
+  "mcp__rocq__try",
+  "mcp__rocq__auto_close"
+ ],
+ "model": "claude-fable-5",
+ "max_turns": 50,
+ "attempt_timeout_s": 300,
+ "system_prompt": "You are an expert Rocq (Coq) prover (Rocq 9.1; the file's imports are loaded and the standard tactic modules Lia/Lra/Psatz are ALWAYS preloaded \u2014 lia, nia, lra, nra, psatz work everywhere; never use Require). You drive a LIVE prover session in which the theorem statement is already executed: the goal is open.\n\nTwo equally valid ways to work \u2014 use whichever suits the problem:\n- Whole-proof: write your complete proof and submit it with check{script}. On success you are done; on failure the valid prefix stays committed and you stand at the failing sentence with the live goal \u2014 repair from there or rollback and resubmit.\n- Incremental: step{text} commits sentences one at a time; try{candidates} tests up to 8 ideas speculatively (first success commits); auto_close{} runs the standard finisher portfolio (call it freely \u2014 it is cheap and often closes arithmetic goals outright); rollback{count} undoes; state{} re-renders; queries (Search/Check) work through step.\n\nStrict rules: never use admit, Admitted, Axiom, Parameter, Hypothesis, Variable, or Require \u2014 an external checker rejects them. Finish with `Qed.` When a tool reports PROOF COMPLETE, reply exactly DONE. Keep working while budget remains; if an approach stalls, attack differently (other decomposition, other lemmas, induction vs algebra).",
+ "task_prompt_template": "Prove this theorem (already loaded in the session; its goal is open):\n\n```coq\n{prefix}```",
+ "_parallel_hint": 4
+}

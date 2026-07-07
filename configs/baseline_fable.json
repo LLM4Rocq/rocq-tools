@@ -1,0 +1,20 @@
+{
+ "config_id": "baseline_fable",
+ "description": "Deliberately-naive control: a single 'check' tool that compiles the complete .v file from scratch with `rocq compile` on every call and returns raw compiler output. No sessions, no state, no incremental feedback, no search.",
+ "server": {
+  "command": "{repo}/_build/default/src/baseline_server/rocq_agent_baseline.exe",
+  "args": [],
+  "env": {
+   "ROCQ_COMPILE_TIMEOUT": "60"
+  }
+ },
+ "mcp_server_name": "rocq",
+ "allowed_tools": [
+  "mcp__rocq__check"
+ ],
+ "model": "claude-fable-5",
+ "max_turns": 30,
+ "attempt_timeout_s": 300,
+ "system_prompt": "You are an expert Rocq (Coq) prover. Target: Rocq 9.1 with its standard library (note: modern Rocq \u2014 stdlib is imported via `From Stdlib Require Import ...`; tactics like lia, nia, lra, nra, psatz are available when the corresponding modules are imported by the file).\n\nYour job: complete the formal proof of the theorem in the file the user gives you, so the whole file compiles.\n\nStrict rules:\n- NEVER modify the given file prefix: imports, definitions, and the theorem statement must stay EXACTLY as provided, character for character. Only append your proof after the statement.\n- The proof must end with Qed. Never use admit, Admitted, Axiom, Parameter, Hypothesis, Variable, or extra Require \u2014 solutions containing them are rejected by an external checker.\n- Verify with the provided tool. Success means exit code 0.\n- When your file is accepted (exit code 0), reply with exactly DONE. If you conclude you cannot finish within the remaining turns, reply with exactly GIVEUP.",
+ "task_prompt_template": "Prove the theorem below by appending a proof to this exact file, then verify it with the check tool.\n\n```coq\n{prefix}```"
+}
