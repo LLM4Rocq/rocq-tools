@@ -301,3 +301,9 @@ now carry the finished proof script so the CLIENT agent inserts it into the
 user's file (server proves, agent edits). ROCQ_TASK_FILE remains as the
 harness preset. Verified: open Admitted theorem -> auto_close -> script;
 re-open same file trailing goal -> check -> script.
+
+
+## A27 verdict (Jul 7 evening)
+Haiku A/B clean (35/35, 0 poisoned): medium unchanged, short −.10 → REVERTED
+to opt-in. Fable arm confounded by pool throttling; not re-run (worst-case
+rule decides). Mechanism ships gated; quality verified; test-covered.

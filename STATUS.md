@@ -1,6 +1,6 @@
 # STATUS — AI-native Rocq tooling experiment · RUN COMPLETE
 
-_Final update: 2026-07-07 · all deliverables shipped and pushed_
+_Final update: 2026-07-07 evening · run complete, product shipped, all verdicts collected_
 
 ## The run in one paragraph
 Starting from a deliberately-naive control, ten measured interface changes
@@ -50,6 +50,26 @@ claims were publicly retracted after contamination was found (§5).
 Policy pool ≈ $250 total across ~6 000 gated attempts · Fable: 2 workflows +
 3 implementation agents (~3.7 M subagent tokens) · wall: 6 days incl. two
 overnight autonomous pipelines · every number's provenance in logs/ + git.
+
+## Final-day additions (Jul 7, all measured or suite-verified)
+- **Fable-tier matrix row**: universal ≥ naive at the strongest policy too
+  (.95/1.00/1.00 vs .95/1.00/.95, dev60 1 rep) — policy-neutrality now spans
+  three tiers.
+- **The mathcomp .07 decomposed**: same tools, fable medium = .93 (either
+  context mode) → it was a policy limit, not a tool limit.
+- **Counterfactual replay** (272 recorded failures, zero policy cost):
+  shipped portfolio already at its closure ceiling; all v3 expansions add
+  zero rescues → portfolio unchanged, with corpus-wide evidence.
+- **A27 exemplar retrieval**: built, leak-proof, quality-verified — measured
+  neutral-to-negative at the weak policy → ships opt-in. Third confirmation
+  of the pattern: context without competence doesn't convert.
+- **Productization (A28/A29)**: `opam pin` install → `rocq-mcp` binary;
+  zero-config MCP registration; runtime `open{file, theorem?}` (Admitted
+  rescue, several proofs per session); project load-path auto-discovery
+  in-server (no Python in the usage path); completion returns the insertable
+  proof script; clean error surfacing. README rewritten (SOTA + all three
+  evaluation dimensions in the headline).
+- Test suite: 95 checks across 4 suites, all green.
 
 ## Needs your input
 _(empty — the run is complete)_

@@ -410,14 +410,18 @@ context-on-demand by default; full-context as a fallback mode. (Absolute
 short-bucket rates likely benefit from policy memorization of stdlib — noted
 per A20; the config A/B is unaffected.)
 
-### A27 exemplar retrieval status
+### A27 exemplar retrieval — measured, REVERTED to opt-in
 Server-side exemplar retrieval (statement-similar proved lemmas pushed at
-session start; leak-proof; suite-tested) is BUILT with verified retrieval
-quality; its fable-arm A/B was confounded by API throttling (single turns
-stretching to 171 s after ~100 back-to-back fable attempts) and the haiku
-arm by a transient network failure — the haiku A/B is re-running; verdict
-recorded when clean. Until then exemplars remain default-on as a
-zero-turn-cost feature whose only measured risk is neutral.
+session start; IDF-ranked; leak-proof; suite-tested; retrieval quality
+verified — e.g. ltn_exp2r retrieves its sibling exponent lemmas). Clean
+haiku A/B on mathcomp35: medium .071 vs .071 (unchanged), short .40 vs .50
+(−.10, ≈2 problems). Neutral-to-negative at the weak policy → ships OPT-IN
+(ROCQ_EXEMPLARS=1), not default. The fable arm was confounded by API
+throttling and not re-run (the worst-case rule already decides). Third
+instance of the pattern (compact, A26 hints, A27 exemplars): added context
+or corrections without matching policy competence do not convert — the only
+context intervention that ever measured positive is adjacent-file FULL
+context at stdlib (A20).
 
 ### A24-ext: the strongest available tier (claude-fable-5, dev60, 1 rep)
 

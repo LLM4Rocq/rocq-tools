@@ -1330,9 +1330,11 @@ let exemplars_block task_prefix =
   end
 
 let exemplars_pending : string option ref =
+  (* A27 verdict: measured neutral-to-negative at the weak policy (haiku
+     mathcomp: medium unchanged, short -.10) — opt-in, not default *)
   ref (match Sys.getenv_opt "ROCQ_EXEMPLARS" with
-       | Some "0" -> None
-       | _ -> Some "" (* computed lazily at first use, after init *))
+       | Some "1" -> Some "" (* computed lazily at first use, after init *)
+       | _ -> None)
 
 let take_exemplars () =
   match !exemplars_pending with

@@ -85,9 +85,11 @@ Cross-cutting enrichments (zero extra turns, all default-on; disable with `=0`):
 - **hint synthesis** (`ROCQ_AUTO2`) — `auto_close` mechanically asserts
   auxiliary facts (e.g. `0 <= (t)²` from goal subterms) and retries the
   nonlinear closers.
-- **exemplar retrieval** (`ROCQ_EXEMPLARS`) — pushes the k most
+- **exemplar retrieval** (`ROCQ_EXEMPLARS=1`, opt-in) — pushes the k most
   statement-similar *proved* lemmas from your project (with their proofs)
-  into the first response, as a style guide.
+  into the first response. Measured neutral at the policies tested (weak
+  policies can be distracted by it), so off by default; retrieval quality
+  itself is verified and leak-proof.
 - **tactic preloading** (`ROCQ_PRELOAD`) — loads Lia/Lra/Psatz after the
   statement so the standard closers always exist. (`ROCQ_ENV_V2=1`
   additionally *refuses* mid-proof `Require` — a benchmark anti-gaming
@@ -123,9 +125,10 @@ Everything else is automatic:
   `ROCQ_PRELOAD=0`).
 - **All tools are on by default**: `check` (whole proof), `step`, `try`,
   `auto_close` (portfolio + hint synthesis), `rollback`, `state` — with
-  error hints, near-miss suggestions, and project exemplar retrieval.
-  Trim with `ROCQ_ENABLE_TOOLS=step,state,...` or disable features with
-  `ROCQ_HINTS=0`, `ROCQ_SUGGEST=0`, `ROCQ_AUTO2=0`, `ROCQ_EXEMPLARS=0`.
+  error hints and near-miss suggestions.
+  Trim with `ROCQ_ENABLE_TOOLS=step,state,...`, disable features with
+  `ROCQ_HINTS=0`/`ROCQ_SUGGEST=0`/`ROCQ_AUTO2=0`, opt into project exemplar
+  retrieval with `ROCQ_EXEMPLARS=1`.
 - On completion the response carries the **finished proof script** (assembled
   from what actually executed — the agent inserts it into your file); a
   standalone `candidate.v` is also written to `ROCQ_WORKDIR`/temp.
