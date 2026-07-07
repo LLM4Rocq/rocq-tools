@@ -410,6 +410,17 @@ context-on-demand by default; full-context as a fallback mode. (Absolute
 short-bucket rates likely benefit from policy memorization of stdlib — noted
 per A20; the config A/B is unaffected.)
 
+### A24-ext: the strongest available tier (claude-fable-5, dev60, 1 rep)
+
+| interface | pass@1 e/m/h | note |
+|---|---|---|
+| naive | .95 / 1.00 / .95 | ~2-3 turns/proof |
+| universal | .95 / 1.00 / **1.00** | hard +5 pp; runs `universal_fable_dev60`, `baseline_fable_dev60` |
+
+Even at a tier that nearly saturates dev60 through ANY interface, universal
+≥ naive in every bucket. The policy-neutrality claim now spans three tiers
+(haiku, sonnet, fable): one server, best-or-tied at each.
+
 ### A24: the policy-neutral `universal` configuration — **RECOMMENDED CONFIG**
 
 One server (style-agnostic surface: whole-proof `check` with repair-from-
