@@ -10,6 +10,49 @@
 
 let initialized = ref false
 
+let prefix_cache : (string * Vernacstate.t) list ref = ref []
+
+(* review fix (live-reproduced staleness): cached prefix snapshots embed
+   loaded .vo contents; if any .vo under the project load paths changes on
+   disk, the cache must be dropped. We fingerprint (path, mtime, size) of
+   .vo files under the init load-path dirs. *)
+let loadpath_dirs : string list ref = ref []
+
+let vo_fingerprint () =
+  let out = ref [] in
+  let rec walk depth d =
+    if depth > 4 then ()
+    else
+      match Sys.readdir d with
+      | entries ->
+          Array.iter
+            (fun e ->
+              let p = Filename.concat d e in
+              if e = ".git" || e = "_opam" then ()
+              else if Sys.is_directory p then walk (depth + 1) p
+              else if Filename.check_suffix e ".vo" then
+                match Unix.stat p with
+                | st -> out := (p, st.Unix.st_mtime, st.Unix.st_size) :: !out
+                | exception Unix.Unix_error _ -> ())
+            entries
+      | exception Sys_error _ -> ()
+  in
+  List.iter (walk 0) !loadpath_dirs;
+  List.sort compare !out
+
+let cache_fingerprint : (string * float * int) list ref = ref []
+
+let check_cache_freshness () =
+  if !prefix_cache <> [] then begin
+    let now = vo_fingerprint () in
+    if now <> !cache_fingerprint then begin
+      prefix_cache := [];
+      cache_fingerprint := now
+    end
+  end
+  else cache_fingerprint := vo_fingerprint ()
+
+
 (* set before init by the `open` tool so load-path discovery starts from the
    opened file rather than a launch-time env var *)
 let discovery_origin : string option ref = ref None
@@ -87,7 +130,7 @@ let init () =
                if String.length line > 0 && line.[0] <> '#' then
                  List.iter
                    (fun w -> if w <> "" then words := w :: !words)
-                   (String.split_on_char ' ' line)
+                   (Str.split (Str.regexp "[ \t]+") line)
              done
            with End_of_file -> close_in ic);
           let abs d = if Filename.is_relative d then root / d else d in
@@ -95,6 +138,7 @@ let init () =
             | "-Q" :: d :: l :: tl -> "-Q" :: abs d :: l :: take tl
             | "-R" :: d :: l :: tl -> "-R" :: abs d :: l :: take tl
             | "-I" :: d :: tl -> "-I" :: abs d :: take tl
+            | "-arg" :: a :: tl -> a :: take tl
             | _ :: tl -> take tl
             | [] -> []
           in
@@ -118,20 +162,16 @@ let init () =
                         let n = in_channel_length ic in
                         let txt = really_input_string ic n in
                         close_in ic;
-                        if
-                          Str.string_match
-                            (Str.regexp ".*coq\\.theory")
-                            (Str.global_replace (Str.regexp "\n") " " txt)
-                            0
-                        then
+                        match Str.search_forward (Str.regexp "coq\\.theory") txt 0 with
+                        | exception Not_found -> ()
+                        | ti -> (
                           try
-                            let i =
+                            let _ =
                               Str.search_forward
                                 (Str.regexp
                                    "(name[ \t\n]+\\([A-Za-z0-9_.]+\\))")
-                                txt 0
+                                txt ti
                             in
-                            ignore i;
                             let lname = Str.matched_group 1 txt in
                             let rel =
                               if dir = root then ""
@@ -141,9 +181,11 @@ let init () =
                                   (String.length dir - String.length root - 1)
                             in
                             let mirror = root / "_build" / "default" / rel in
-                            if Sys.file_exists mirror then
-                              out := [ "-Q"; mirror; lname ] :: !out
-                          with Not_found -> ()
+                            (* mirror when built; else the source dir (in-place
+                               builds keep .vo next to .v) *)
+                            let dir = if Sys.file_exists mirror then mirror else dir in
+                            out := [ "-Q"; dir; lname ] :: !out
+                          with Not_found -> ())
                       end)
                     entries
               | exception Sys_error _ -> ()
@@ -159,6 +201,13 @@ let init () =
           |> List.filter (fun x -> x <> "")
       | _ -> discover_project_args ()
     in
+    let rec dirs_of = function
+      | ("-Q" | "-R") :: d :: _ :: tl -> d :: dirs_of tl
+      | "-I" :: d :: tl -> d :: dirs_of tl
+      | _ :: tl -> dirs_of tl
+      | [] -> []
+    in
+    loadpath_dirs := dirs_of extra_args;
     let opts, () =
       Coqinit.parse_arguments
         ~parse_extra:(fun _opts extra -> ((), extra))
@@ -334,7 +383,17 @@ let exec_text ?cache ~(timeout_s : float) ~(qed_timeout_s : float)
   let save acc =
     match cache with
     | Some c ->
-        c := List.rev_map (fun x -> (x.text, x.post)) acc
+        let cur = List.rev_map (fun x -> (x.text, x.post)) acc in
+        (* review fix: a run that is a strict text-prefix of the cache (e.g.
+           make_session replaying part of open's full-file pass, or a failed
+           open of a broken file) must not truncate or wipe the warm cache *)
+        let rec is_prefix a b =
+          match (a, b) with
+          | [], _ -> true
+          | (ta, _) :: a', (tb, _) :: b' -> String.equal ta tb && is_prefix a' b'
+          | _ :: _, [] -> false
+        in
+        if not (is_prefix cur !c) then c := cur
     | None -> ()
   in
   let rec loop st remaining_cache acc =
@@ -381,6 +440,6 @@ let exec_text ?cache ~(timeout_s : float) ~(qed_timeout_s : float)
                 save acc;
                 (List.rev acc, Timeout_at { text; timeout_s = t })))
   in
+  (match cache with Some _ -> check_cache_freshness () | None -> ());
   loop st (match cache with Some c -> !c | None -> []) []
 
-let prefix_cache : (string * Vernacstate.t) list ref = ref []

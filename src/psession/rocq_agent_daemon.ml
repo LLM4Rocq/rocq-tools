@@ -226,10 +226,22 @@ let op_focus t agent goal =
     (* conflict prevention: refuse goals already owned by another live agent
        (previously two agents could both claim a goal; the loser's merge then
        landed on a vanished goal) *)
+    let requested_concl =
+      match D.first_goal_view (trunk_state t) with
+      | Some (_, c0, others) -> (
+          match List.nth_opt (c0 :: others) (goal - 1) with
+          | Some c -> c
+          | None -> "")
+      | None -> ""
+    in
     let owned_by_other =
+      (* review fix: compare by conclusion digest — positional ids shift when
+         siblings merge, so index equality both misses and falsely matches *)
       Hashtbl.fold
         (fun a (b : branch) acc ->
-          if a <> agent && (not b.closed) && b.goal_id = goal then Some a
+          if a <> agent && (not b.closed) && requested_concl <> ""
+             && b.concl = requested_concl
+          then Some a
           else acc)
         t.branches None
     in

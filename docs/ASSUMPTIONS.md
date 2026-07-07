@@ -334,3 +334,28 @@ by []/done/by lia/by ring/by lra/by nia in-regime. Smoke: `by lia.` closes
 (.50 short / .071 medium) running — this adds CAPABILITY, not information,
 so it is the first intervention with a mechanical reason to move the weak-
 policy mathcomp numbers.
+
+## A31 — product-code adversarial review (Jul 7 night): 24 confirmed, triaged
+Five-skeptic workflow + refuting verifiers over the day's additions.
+FIXED (repro-verified where applicable):
+- CRITICAL exemplar leak-guard dead after `open` (byte-prefix never matches a
+  normalized prefix; _build mirrors served the target's own proof): replaced
+  with statement-token identity exclusion + _build/.git/_opam skipped in the
+  scan; live repro now clean (sibling served, target proof not retrievable).
+- Memoization staleness (live-reproduced stale accept after .vo recompile):
+  .vo fingerprint (path,mtime,size) over init load paths; cache dropped on
+  change; repro now correctly fails the changed proof.
+- Cache truncation/wipe: prefix-of-cache runs no longer overwrite.
+- open re-armed exemplars with inverted polarity (default-on): now opt-in.
+- with_exemplars consumed the one-shot block on ERROR results: guarded.
+- stmt_re \b failed on prime-terminated names: explicit non-ident/end match.
+- Dune discovery bound the first (name) anywhere in the file: now scoped
+  after the coq.theory occurrence; missing _build mirror now falls back to
+  the source dir (in-place builds); _CoqProject -arg kept, tab-safe split.
+- Daemon focus guard compared stale positional ids: conclusion digest now.
+- Cross-project `open` after init: explicit NOTE in the response.
+DOCUMENTED, NOT FIXED (accepted): mk_prefix drops comments between sentences
+(candidate.v cosmetic); open probe executes the whole file once before
+cutting (memoized thereafter); preload re-executes per open (~0.3 s);
+strip_comments depth-0 string literals containing "(*"; score recomputation
+in sort; Failure-only clean surfacing; cache memory footprint.

@@ -1223,7 +1223,8 @@ let rec v_files acc depth d =
         Array.fold_left
           (fun acc e ->
             let p = Filename.concat d e in
-            if Sys.is_directory p then v_files acc (depth + 1) p
+            if e = "_build" || e = ".git" || e = "_opam" || e = ".opam" then acc
+            else if Sys.is_directory p then v_files acc (depth + 1) p
             else if Filename.check_suffix e ".v" then p :: acc
             else acc)
           acc entries
@@ -1328,6 +1329,9 @@ let exemplars_block task_prefix =
         files
     in
     let dedup l = List.sort_uniq compare l in
+    let norm_stmt st =
+      String.concat " " (List.sort compare (List.sort_uniq compare (stmt_tokens st)))
+    in
     (* document frequency over lemma statements -> rare-token weighting *)
     let df = Hashtbl.create 4096 in
     List.iter
@@ -1353,6 +1357,23 @@ let exemplars_block task_prefix =
       let shared = List.filter (fun t -> List.mem t task_toks) toks in
       let base = List.fold_left (fun a t -> a +. weight t) 0.0 shared in
       if same then base *. 1.5 else base
+    in
+    let task_tail =
+      (* the target statement = from the LAST theorem keyword to prefix end *)
+      let stripped = strip_comments task_prefix in
+      let rec last_kw pos acc =
+        match Str.search_forward lemma_re stripped pos with
+        | i -> last_kw (i + 1) i
+        | exception Not_found -> acc
+      in
+      let i = last_kw 0 0 in
+      norm_stmt (String.sub stripped i (String.length stripped - i))
+    in
+    let lemmas =
+      (* leak-proofing v2 (review fix): never serve a lemma whose statement
+         tokens equal the target's — catches file copies and build mirrors
+         that the old byte-prefix guard missed after `open` *)
+      List.filter (fun (st, _, _) -> norm_stmt st <> task_tail) lemmas
     in
     let ranked =
       List.stable_sort (fun a b -> compare (score b) (score a)) lemmas
@@ -1391,6 +1412,8 @@ let with_exemplars (t : M.tool) =
     M.handler =
       (fun args ->
         let r = t.M.handler args in
+        if r.M.is_error then r
+        else
         match take_exemplars () with
         | Some block when block <> "" ->
             let content =
@@ -1444,7 +1467,7 @@ let open_tool =
           let stmt_re name =
             Str.regexp
               ("\\(Theorem\\|Lemma\\|Fact\\|Corollary\\|Proposition\\|Goal\\)[ \\t\\n]+"
-              ^ Str.quote name ^ "\\b")
+              ^ Str.quote name ^ "\\([^A-Za-z0-9_']\\|$\\)")
           in
           let is_stmt_of name (x : D.exec_step) =
             (try ignore (Str.search_forward (stmt_re name) x.D.text 0); true
@@ -1460,11 +1483,23 @@ let open_tool =
           let finish prefix goal_desc =
             exemplars_pending :=
               (match Sys.getenv_opt "ROCQ_EXEMPLARS" with
-              | Some "0" -> None
-              | _ -> Some "");
+              | Some "1" -> Some ""
+              | _ -> None);
             let s = make_session prefix in
+            let cross_project_note =
+              match !Rocq_driver.loadpath_dirs with
+              | d :: _ when not (Filename.dirname file = Filename.dirname d)
+                            && not (String.length file > String.length (Filename.dirname d)
+                                    && String.sub file 0 (String.length (Filename.dirname d))
+                                       = Filename.dirname d) ->
+                  "\nNOTE: the prover was initialized with load paths from a \
+                   different project; if imports fail, restart the server \
+                   with this file."
+              | _ -> ""
+            in
             M.text_result
-              (Printf.sprintf "opened %s — proving %s.\n%s" file goal_desc
+              (Printf.sprintf "opened %s — proving %s.%s\n%s" file goal_desc
+                 cross_project_note
                  (goals_block (cur_state s)))
           in
           match thm with
