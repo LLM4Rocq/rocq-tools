@@ -1,10 +1,14 @@
 (executable
  (name rocq_agent_shim)
+ (public_name rocq-mcp-shim)
+ (package rocq-tools)
  (modules rocq_agent_shim)
  (libraries mcp_core yojson unix))
 
 (executable
  (name rocq_agent_daemon)
+ (public_name rocq-mcp-daemon)
+ (package rocq-tools)
  (modules rocq_agent_daemon rocq_driver)
  (libraries
   yojson

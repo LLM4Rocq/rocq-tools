@@ -74,72 +74,56 @@ Cross-cutting enrichments (zero extra turns):
 > the held-out `configs/frozen.json` sets `HINTS`/`SUGGEST`/`ENV_V2`. The
 > try-it block below enables the full set.
 
-## Install & try it in 2 minutes
-
-**Prerequisites:** an opam switch with **Rocq 9.1.1 / OCaml 5.3.0** and
-`yojson` (full pin list + one-command from-scratch setup in
-[`repro/setup.sh`](repro/setup.sh) → `./repro/setup.sh /path/to/new/switch`).
-With the switch active:
+## Install & try (2 minutes)
 
 ```sh
-dune build          # builds the tool servers (session / baseline / daemon)
+opam pin add rocq-tools https://github.com/LLM4Rocq/rocq-tools.git
 ```
 
-Then, from the repo root, solve a theorem with the standalone session server:
-
-```sh
-# 1. a task file = imports + the theorem STATEMENT (goal left open, no proof)
-mkdir -p /tmp/rocq-demo
-printf 'Theorem demo : forall n : nat, n + 0 = n.\n' > /tmp/rocq-demo/task.v
-
-# 2. launch the session server and let auto_close solve it
-export PATH="$(pwd)/../_opam/bin:$PATH"       # or your switch's bin dir
-export ROCQ_TASK_FILE=/tmp/rocq-demo/task.v ROCQ_WORKDIR=/tmp/rocq-demo
-export ROCQ_ENV_V2=1 ROCQ_AUTO2=1 ROCQ_HINTS=1 ROCQ_SUGGEST=1
-export ROCQ_ENABLE_TOOLS=check,step,rollback,state,try,auto_close
-printf '%s\n%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"auto_close","arguments":{}}}' \
-  | _build/default/src/session_server/rocq_agent_session.exe
-#  → …"`lia.` closes it — COMMITTED.\nPROOF COMPLETE — the file is saved."
-cat /tmp/rocq-demo/candidate.v      # the verified proof (lia. / Qed.)
-```
-
-**Attach it to any MCP client** as server `rocq` — write `rocq.json`:
+installs the `rocq-mcp` binary into your opam switch (needs `rocq-runtime`
+>= 9.1, pulled automatically). Then add ONE block to any MCP client config
+(Claude Code, `claude` CLI, or anything MCP-speaking):
 
 ```json
 { "mcpServers": { "rocq": {
-  "command": "/ABS/PATH/_build/default/src/session_server/rocq_agent_session.exe",
-  "args": [],
-  "env": {
-    "ROCQ_TASK_FILE": "/tmp/rocq-demo/task.v", "ROCQ_WORKDIR": "/tmp/rocq-demo",
-    "ROCQ_ENV_V2": "1", "ROCQ_AUTO2": "1", "ROCQ_HINTS": "1", "ROCQ_SUGGEST": "1",
-    "ROCQ_ENABLE_TOOLS": "check,step,rollback,state,try,auto_close"
-  } } } }
+    "command": "rocq-mcp",
+    "env": { "ROCQ_TASK_FILE": "/path/to/your/project/proofs/goal.v" } } } }
 ```
+
+That's it. `goal.v` is any file ending with an unproven statement (your
+imports + `Theorem my_goal : ...`). Everything else is automatic:
+
+- **Project load paths are auto-discovered** — the server walks up from the
+  task file to your `_CoqProject`/`_RocqProject` (parsed for `-Q/-R/-I`) or
+  `dune-project` (`coq.theory` stanzas, mapped to the `_build/default`
+  mirror). Build your project first; no other setup. Override with
+  `ROCQ_INIT_ARGS` (newline-separated rocq args) if you need to.
+- **Standard tactic modules** (Lia/Lra/Psatz) are preloaded (disable:
+  `ROCQ_PRELOAD=0`).
+- **All tools are on by default**: `check` (whole proof), `step`, `try`,
+  `auto_close` (portfolio + hint synthesis), `rollback`, `state` — with
+  error hints, near-miss suggestions, and project exemplar retrieval.
+  Trim with `ROCQ_ENABLE_TOOLS=step,state,...` or disable features with
+  `ROCQ_HINTS=0`, `ROCQ_SUGGEST=0`, `ROCQ_AUTO2=0`, `ROCQ_EXEMPLARS=0`.
+- The completed proof is written to `candidate.v` (in `ROCQ_WORKDIR`, or the
+  temp dir) — assembled by the server from what actually executed.
+
+Quick smoke without any MCP client:
 
 ```sh
-claude -p "Prove the open goal in this Rocq session." \
-  --strict-mcp-config --mcp-config rocq.json --tools "" \
-  --allowedTools mcp__rocq__check,mcp__rocq__step,mcp__rocq__try,mcp__rocq__auto_close,mcp__rocq__rollback,mcp__rocq__state
+printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"auto_close","arguments":{}}}' \
+  | ROCQ_TASK_FILE=/path/to/goal.v rocq-mcp
 ```
 
-**Use it on your own project** (dune or `_CoqProject`):
+For multi-agent work on one proof, `rocq-mcp-daemon` + `rocq-mcp-shim` are
+installed alongside (see docs/DESIGN.md, intra-proof parallelism).
 
-```sh
-# discover load-path args (build first for dune projects)
-python3 harness/project_args.py /path/to/project --build
-# run the session against a file in your project
-ROCQ_INIT_ARGS="$(python3 harness/project_args.py /path/to/project)" \
-ROCQ_TASK_FILE=/path/to/task_prefix.v ROCQ_ENV_V2=1 \
-  _build/default/src/session_server/rocq_agent_session.exe
-```
-
-Manifest records may carry `"rocq_args": ["-Q", "<dir>", "<Logical>", …]`; the
-harness plumbs them into the session (`ROCQ_INIT_ARGS`), the naive baseline
-(`ROCQ_COMPILE_ARGS`), and the gate automatically. Known real-world snag
-(surfaced cleanly): stale `.vo` from a different Rocq version — rebuild the
-project under the experiment switch.
+*Developing / reproducing the experiment instead?* `repro/setup.sh` builds
+the pinned environment from scratch and `dune build` works in-tree; the
+Python `harness/` is ONLY for running the benchmark experiment, never needed
+to use the tool.
 
 ## Tests
 

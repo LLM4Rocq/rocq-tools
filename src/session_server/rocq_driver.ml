@@ -45,14 +45,112 @@ let init () =
     in
     (* real-project support (A23): load-path and other init args arrive
        newline-separated in $ROCQ_INIT_ARGS (e.g. "-Q\n/path\nLogical"),
-       exactly as rocq's own CLI would take them *)
+       exactly as rocq's own CLI would take them. When ROCQ_INIT_ARGS is
+       absent, the server discovers them itself (A28): walk up from the task
+       file for _CoqProject/_RocqProject (parse -Q/-R/-I) or a dune project
+       (coq.theory stanzas -> the _build/default mirror). Zero external
+       tooling needed to use the server on a real project. *)
+    let discover_project_args () =
+      let ( / ) = Filename.concat in
+      let task =
+        match Sys.getenv_opt "ROCQ_TASK_FILE" with
+        | Some f when f <> "" -> f
+        | _ -> Sys.getcwd () / "x"
+      in
+      let rec find_root dir n =
+        if n = 0 || dir = "/" || dir = "." then None
+        else if Sys.file_exists (dir / "_CoqProject")
+                || Sys.file_exists (dir / "_RocqProject")
+        then Some (dir, `CoqProject)
+        else if Sys.file_exists (dir / "dune-project") then Some (dir, `Dune)
+        else find_root (Filename.dirname dir) (n - 1)
+      in
+      match find_root (Filename.dirname task) 8 with
+      | None -> []
+      | Some (root, `CoqProject) ->
+          let pf =
+            if Sys.file_exists (root / "_CoqProject") then root / "_CoqProject"
+            else root / "_RocqProject"
+          in
+          let ic = open_in pf in
+          let words = ref [] in
+          (try
+             while true do
+               let line = String.trim (input_line ic) in
+               if String.length line > 0 && line.[0] <> '#' then
+                 List.iter
+                   (fun w -> if w <> "" then words := w :: !words)
+                   (String.split_on_char ' ' line)
+             done
+           with End_of_file -> close_in ic);
+          let abs d = if Filename.is_relative d then root / d else d in
+          let rec take = function
+            | "-Q" :: d :: l :: tl -> "-Q" :: abs d :: l :: take tl
+            | "-R" :: d :: l :: tl -> "-R" :: abs d :: l :: take tl
+            | "-I" :: d :: tl -> "-I" :: abs d :: take tl
+            | _ :: tl -> take tl
+            | [] -> []
+          in
+          take (List.rev !words)
+      | Some (root, `Dune) ->
+          (* find dune files with coq.theory stanzas; each maps to the
+             _build/default mirror of its directory *)
+          let out = ref [] in
+          let rec scan dir depth =
+            if depth > 5 then ()
+            else
+              match Sys.readdir dir with
+              | entries ->
+                  Array.iter
+                    (fun e ->
+                      let p = dir / e in
+                      if e = "_build" || e = ".git" then ()
+                      else if Sys.is_directory p then scan p (depth + 1)
+                      else if e = "dune" then begin
+                        let ic = open_in p in
+                        let n = in_channel_length ic in
+                        let txt = really_input_string ic n in
+                        close_in ic;
+                        if
+                          Str.string_match
+                            (Str.regexp ".*coq\\.theory")
+                            (Str.global_replace (Str.regexp "\n") " " txt)
+                            0
+                        then
+                          try
+                            let i =
+                              Str.search_forward
+                                (Str.regexp
+                                   "(name[ \t\n]+\\([A-Za-z0-9_.]+\\))")
+                                txt 0
+                            in
+                            ignore i;
+                            let lname = Str.matched_group 1 txt in
+                            let rel =
+                              if dir = root then ""
+                              else
+                                String.sub dir
+                                  (String.length root + 1)
+                                  (String.length dir - String.length root - 1)
+                            in
+                            let mirror = root / "_build" / "default" / rel in
+                            if Sys.file_exists mirror then
+                              out := [ "-Q"; mirror; lname ] :: !out
+                          with Not_found -> ()
+                      end)
+                    entries
+              | exception Sys_error _ -> ()
+          in
+          scan root 0;
+          List.concat (List.rev !out)
+    in
     let extra_args =
       match Sys.getenv_opt "ROCQ_INIT_ARGS" with
       | Some s when String.trim s <> "" ->
           String.split_on_char '\n' s
           |> List.map String.trim
           |> List.filter (fun x -> x <> "")
-      | _ -> []
+      | _ -> discover_project_args ()
     in
     let opts, () =
       Coqinit.parse_arguments

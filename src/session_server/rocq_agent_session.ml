@@ -75,7 +75,10 @@ let get_session () =
          cannot shift); the gate compiles candidates with the same modules
          injected, so in-session success and gate success stay aligned. *)
       let base =
-        if Sys.getenv_opt "ROCQ_ENV_V2" = Some "1" then begin
+        (* preload standard tactic modules by default (ROCQ_PRELOAD=0 to
+           disable). The Require-REFUSAL policy remains tied to ROCQ_ENV_V2
+           (experiment/gate alignment); real projects may Require freely. *)
+        if Sys.getenv_opt "ROCQ_PRELOAD" <> Some "0" then begin
           let steps2, stop2 =
             D.exec_text ~timeout_s:60. ~qed_timeout_s:60. base
               "From Stdlib Require Import Lia Lra Psatz."
@@ -215,7 +218,7 @@ let fmt_msgs msgs =
    overwhelmingly Lean syntax; plus Lean tactic names as unknown refs. *)
 
 let hints_on =
-  lazy (match Sys.getenv_opt "ROCQ_HINTS" with Some "1" -> true | _ -> false)
+  lazy (match Sys.getenv_opt "ROCQ_HINTS" with Some "0" -> false | _ -> true)
 
 let lean_tactic_map =
   [ ("norm_num", "try `lra`, `field. lra.`, or `nra`");
@@ -349,7 +352,7 @@ type try_outcome =
    Gated by ROCQ_AUTO2=1. *)
 
 let auto2_on =
-  lazy (match Sys.getenv_opt "ROCQ_AUTO2" with Some "1" -> true | _ -> false)
+  lazy (match Sys.getenv_opt "ROCQ_AUTO2" with Some "0" -> false | _ -> true)
 
 let r_vars_of_state st =
   match D.first_goal_view st with
@@ -425,7 +428,7 @@ let auto2_scripts st =
 (* ---- rung 8: did-you-mean suggestions on unknown references ----------- *)
 
 let suggest_on =
-  lazy (match Sys.getenv_opt "ROCQ_SUGGEST" with Some "1" -> true | _ -> false)
+  lazy (match Sys.getenv_opt "ROCQ_SUGGEST" with Some "0" -> false | _ -> true)
 
 let ident_fragments ident =
   (* split snake_case and CamelCase into searchable fragments *)
@@ -1308,8 +1311,8 @@ let exemplars_block task_prefix =
 
 let exemplars_pending : string option ref =
   ref (match Sys.getenv_opt "ROCQ_EXEMPLARS" with
-       | Some "1" -> Some "" (* computed lazily at first use, after init *)
-       | _ -> None)
+       | Some "0" -> None
+       | _ -> Some "" (* computed lazily at first use, after init *))
 
 let take_exemplars () =
   match !exemplars_pending with
@@ -1341,7 +1344,7 @@ let () =
   let enabled =
     match Sys.getenv_opt "ROCQ_ENABLE_TOOLS" with
     | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
-    | _ -> [ "step"; "rollback"; "state" ]
+    | _ -> [ "check"; "step"; "rollback"; "state"; "try"; "auto_close" ]
   in
   let all =
     [ step_tool; rollback_tool; state_tool; try_tool; search_tool;

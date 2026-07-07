@@ -12,7 +12,8 @@
    "ROCQ_HINTS": "1",
    "ROCQ_SUGGEST": "1",
    "ROCQ_ENV_V2": "1",
-   "ROCQ_AUTO2": "1"
+   "ROCQ_AUTO2": "1",
+   "ROCQ_EXEMPLARS": "0"
   }
  },
  "mcp_server_name": "rocq",

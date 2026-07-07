@@ -273,3 +273,17 @@ Leak-proofing: for the file the task was cut from, only the region BEFORE
 the prefix end is admissible (the target's own proof is never retrievable).
 Smoke: ltn_exp2r -> {expnI, ltn_pexp2l, leq_pexp2l}. A/B on mathcomp35 at
 haiku + fable vs same configs without.
+
+## A28 — productization (Jul 7, from user review of README)
+User: "why is install so complicated / why python to use it on a project?"
+Root cause: README documented the experiment artifact; project_args.py was
+harness leakage into the usage path. Fixed: (1) opam package `rocq-tools`
+(public binaries rocq-mcp / rocq-mcp-daemon / rocq-mcp-shim); (2) in-server
+load-path auto-discovery (walk up from ROCQ_TASK_FILE to _CoqProject or
+dune-project; OCaml, zero external tooling); (3) product defaults: all tools
+on, hints/suggest/synthesis/exemplars on (opt-out with =0), tactic preload
+split from the Require-refusal policy (preload default-on via ROCQ_PRELOAD,
+refusal stays opt-in via ROCQ_ENV_V2). All historical configs pinned with
+explicit values so their semantics are unchanged and self-describing.
+Verified hermetically: installed binary + ROCQ_TASK_FILE alone proves a
+lemma in a fresh dune project (auto-discovery + preload + portfolio).

@@ -11,7 +11,9 @@
    "ROCQ_ENABLE_TOOLS": "step,rollback,state,try,auto_close",
    "ROCQ_HINTS": "1",
    "ROCQ_SUGGEST": "1",
-   "ROCQ_AUTO2": "1"
+   "ROCQ_AUTO2": "1",
+   "ROCQ_EXEMPLARS": "0",
+   "ROCQ_PRELOAD": "0"
   }
  },
  "mcp_server_name": "rocq",

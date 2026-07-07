@@ -9,7 +9,12 @@
    "ROCQ_QED_TIMEOUT": "60",
    "ROCQ_TRY_TIMEOUT": "5",
    "ROCQ_ENABLE_TOOLS": "step,rollback,state,try",
-   "ROCQ_RENDER": "compact"
+   "ROCQ_RENDER": "compact",
+   "ROCQ_HINTS": "0",
+   "ROCQ_SUGGEST": "0",
+   "ROCQ_AUTO2": "0",
+   "ROCQ_EXEMPLARS": "0",
+   "ROCQ_PRELOAD": "0"
   }
  },
  "mcp_server_name": "rocq",
