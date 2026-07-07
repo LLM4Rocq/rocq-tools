@@ -17,21 +17,37 @@ best-worst-case-across-policies criterion.
 
 ## Headline results
 
-pass@1, easy / medium / hard. Weak policy = `claude-haiku-4-5`, strong =
-`claude-sonnet-5` (annex, never used for keep/revert decisions).
+All three objectives, per difficulty bucket (easy / medium / hard), dev60.
+**$/solve** = mean cost per attempt ÷ pass@1 (expected spend per solved
+proof, failures included); **wall** = mean seconds per attempt. SOTA =
+[rocq-mcp](https://github.com/LLM4Rocq/rocq-mcp), measured under the
+identical harness, problems, gate, and policies (first contact only after
+our design freeze; its numbers are a lower bound — some attempts hit an MCP
+startup race, see REPORT §8).
 
-| interface | policy | easy / medium / hard | note |
-|---|---|---|---|
-| naive whole-file `check` (control) | haiku | .44 / .25 / .30 | |
-| **`universal`** (recommended) | haiku | **.662 / .575 / .40** | 4 reps; ≥ naive every bucket; hard trails the haiku-tuned config by .075 |
-| naive whole-file `check` | sonnet | .925 / .95 / .80 | |
-| **`universal`** | sonnet | **.95 / 1.00 / .85** | beats naive in **every** bucket, −40 % wall |
-| `frozen` config — **held-out** miniF2F test | haiku | **.519 / .127 / .043** | single logged run; pass@2 .569/.165/.057 |
+| interface | policy | pass@1 | $ / solve | wall s |
+|---|---|---|---|---|
+| naive whole-file (control) | haiku | .44 / .25 / .30 | .18 / .44 / .49 | 90 / 122 / 157 |
+| rocq-mcp (SOTA) | haiku | .45 / .23 / .23 | .12 / .36 / .37 | 56 / 74 / 78 |
+| **`universal`** (recommended) | haiku | **.66 / .58 / .40** | .10 / .16 / .23 | 59 / 71 / 74 |
+| naive whole-file | sonnet | .93 / .95 / .80 | .09 / .15 / .18 | 61 / 77 / 112 |
+| rocq-mcp (SOTA) | sonnet | .83 / .73 / .73 | .11 / .23 / .21 | 60 / 92 / 114 |
+| **`universal`** | sonnet | **.95 / 1.00 / .85** | **.07 / .09 / .13** | **36 / 42 / 85** |
+| naive whole-file | fable | .95 / 1.00 / .95 | — | (1 rep) |
+| **`universal`** | fable | **.95 / 1.00 / 1.00** | — | (1 rep) |
+| `frozen` — **held-out** miniF2F test | haiku | .52 / .13 / .04 | — | single logged run |
 
-**Ladder (weak policy):** baseline `.44/.25/.25` → winner `.70/.525/.425`
+Readings: `universal` is best-or-tied in every bucket at **all three policy
+tiers**; at sonnet it is simultaneously the most accurate *and* the cheapest
+per solved proof of anything measured; the SOTA comparison shows heavy
+interactive-tool adoption does not convert without turn-compression
+(rocq-mcp ≈ naive at haiku, dominated on all three axes at sonnet).
+
+**Ladder (weak policy):** baseline `.44/.25/.30` → winner `.70/.525/.425`
 (4 reps) via 6 kept + 4 reverted measured changes, at **−45 % cost, −55 % wall**;
 per-interaction prover latency **266 ms → ~1 ms** (persistent in-process
-session + O(1) snapshot rollback vs full recompile).
+session + O(1) snapshot rollback vs full recompile). Scalability: ~80 %
+parallel efficiency at N=8 agents, ≈6× solved-proofs/hour vs the control.
 
 > **The design law, from 10 ablations:** *maximize prover-grounded information
 > per model turn, at zero marginal turn cost.* Everything that pushed
@@ -46,12 +62,14 @@ sonnet medium `1.00` is 2/2 reps; the held-out row is a single frozen-config run
 
 ## The tools — one policy-neutral MCP server (`rocq`)
 
-The agent talks MCP over stdio to `rocq_agent_session.exe`. The whole-proof and
-incremental styles are both first-class in **one** server; a neutral prompt
-offers both. Tools enabled by `ROCQ_ENABLE_TOOLS`, enrichments by the flags shown.
+The agent talks MCP over stdio to `rocq-mcp`. The whole-proof and
+incremental styles are both first-class in **one** server. All tools and
+enrichments are ON by default (trim with `ROCQ_ENABLE_TOOLS`, disable
+features with `ROCQ_<FEATURE>=0`).
 
 | tool | what it does |
 |---|---|
+| `open{file, theorem?}` | Open a .v file at runtime and start (or restart) a session on it: targets the named theorem's statement (its old proof/`Admitted` is ignored) or the file's trailing open goal. Project load paths auto-discovered from the file's location. |
 | `check{script}` | Submit a **complete** proof (`Proof. … Qed.`) in one call. On success, done; on failure the valid prefix stays committed and you stand at the failing sentence with the live goal — repair or resubmit. |
 | `step{text}` | Execute one or more sentences incrementally; each success commits permanently, the first failure reports a structured error and leaves state at the last success. Queries (`Search`/`Check`) run here too. |
 | `try{candidates}` | Test up to 8 candidate scripts **speculatively** from the current state; the first that fully succeeds is committed (k ideas, one turn). |
@@ -59,20 +77,21 @@ offers both. Tools enabled by `ROCQ_ENABLE_TOOLS`, enrichments by the flags show
 | `rollback{count}` | Undo the last N committed sentences (O(1) state swap) and show the goal you are back to. |
 | `state{}` | Re-render all open goals and the committed proof so far. |
 
-Cross-cutting enrichments (zero extra turns):
-- **error hints** (`ROCQ_HINTS=1`) — rewrites Lean-isms and common mistakes into
+Cross-cutting enrichments (zero extra turns, all default-on; disable with `=0`):
+- **error hints** (`ROCQ_HINTS`) — rewrites Lean-isms and common mistakes into
   the Rocq form, inlined into the error payload.
-- **did-you-mean** (`ROCQ_SUGGEST=1`) — near-miss *existing* lemma names appended
+- **did-you-mean** (`ROCQ_SUGGEST`) — near-miss *existing* lemma names appended
   to unknown-reference errors.
-- **hint synthesis** (`ROCQ_AUTO2=1`) — `auto_close` mechanically asserts
-  auxiliary facts (e.g. `0 <= (t)²` from goal subterms) and retries nra/psatz.
-- **env-v2 preloading** (`ROCQ_ENV_V2=1`) — preloads Lia/Lra/Psatz after the
-  statement so closers are always available, and refuses mid-proof `Require`
-  (an anti-gaming trap) with guidance.
-
-> Config note: the shipped `configs/universal.json` sets `HINTS`/`SUGGEST`/`AUTO2`;
-> the held-out `configs/frozen.json` sets `HINTS`/`SUGGEST`/`ENV_V2`. The
-> try-it block below enables the full set.
+- **hint synthesis** (`ROCQ_AUTO2`) — `auto_close` mechanically asserts
+  auxiliary facts (e.g. `0 <= (t)²` from goal subterms) and retries the
+  nonlinear closers.
+- **exemplar retrieval** (`ROCQ_EXEMPLARS`) — pushes the k most
+  statement-similar *proved* lemmas from your project (with their proofs)
+  into the first response, as a style guide.
+- **tactic preloading** (`ROCQ_PRELOAD`) — loads Lia/Lra/Psatz after the
+  statement so the standard closers always exist. (`ROCQ_ENV_V2=1`
+  additionally *refuses* mid-proof `Require` — a benchmark anti-gaming
+  policy, off for normal use.)
 
 ## Install & try (2 minutes)
 
@@ -80,8 +99,8 @@ Cross-cutting enrichments (zero extra turns):
 opam pin add rocq-tools https://github.com/LLM4Rocq/rocq-tools.git
 ```
 
-installs the `rocq-mcp` binary into your opam switch (needs `rocq-runtime`
->= 9.1, pulled automatically). Then add ONE block to any MCP client config
+installs the `rocq-mcp` binary into your opam switch (`rocq-runtime` 9.1+
+is pulled automatically). Then add ONE block to any MCP client config
 (Claude Code, `claude` CLI, or anything MCP-speaking):
 
 ```json
@@ -139,8 +158,9 @@ Architecture: [`test/ARCHITECTURE.md`](test/ARCHITECTURE.md).
 
 - **`test_session.ml`** (A) — session-server core contracts: commit-good-prefix,
   auto-Qed handshake, try/auto_close semantics, rollback, env-v2 rejection,
-  error hints + did-you-mean, whole-proof `check`, project load-paths — plus the
-  failure-atlas regressions (auto-Qed, dead-tool purge, Search flip).
+  error hints + did-you-mean, whole-proof `check`, project load-paths, runtime
+  `open` (incl. Admitted-targeting), exemplar retrieval (incl. leak-proofing) —
+  plus the failure-atlas regressions (auto-Qed, dead-tool purge, Search flip).
 - **`test_daemon.ml`** (B) — shared-proof multi-agent daemon: two-agent
   branch/merge, unfocused-agent trunk safety, and the **merge-renumbering**
   regression (a review fix that would corrupt >2-goal merges).
@@ -170,7 +190,7 @@ test/                dune-driven integration suites (A–D above)
 Docs: [`docs/REPORT.md`](docs/REPORT.md) ·
 [`STATUS.md`](STATUS.md) · [`docs/DESIGN.md`](docs/DESIGN.md) ·
 [`docs/FAILURE_ATLAS.md`](docs/FAILURE_ATLAS.md) ·
-[`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md) (autonomous-decision log A1–A25) ·
+[`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md) (autonomous-decision log A1–A29) ·
 [`docs/TASK.md`](docs/TASK.md) (original brief).
 
 ## Reproduce the experiment
