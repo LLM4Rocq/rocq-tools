@@ -236,3 +236,17 @@ requires deliberately recreating the `FINAL_UNLOCK` sentinel. Method in
 one line: one naive control; profile; one change at a time; keep only what
 improves per-bucket dev numbers (never pooled); gate every attempt; freeze; then
 one logged run on the held-out split.
+
+## How to cite
+
+```bibtex
+@software{rocqtools2026,
+  author  = {{LLM4Rocq}},
+  title   = {rocq-tools: an empirically-designed, policy-neutral {MCP} tool
+             layer for the {Rocq} prover},
+  year    = {2026},
+  url     = {https://github.com/LLM4Rocq/rocq-tools},
+  note    = {Interface designed by measured ablation against per-difficulty
+             baselines; results and full decision log in the repository}
+}
+```
