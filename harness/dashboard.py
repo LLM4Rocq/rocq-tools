@@ -462,26 +462,6 @@ def build():
     naive_h = stats_by_cfg.get("baseline", {})
     naive_s = stats_for(runs, "baseline_sonnet_dev60")
 
-    tiles = [
-        f'<div class="tile card"><div class="lbl">recommended config (universal) · haiku</div>'
-        f'<div class="val">{fmt3(uni_h)}</div><div class="delta">pass@1 e/m/h · 4 reps · dev60</div></div>',
-        f'<div class="tile card"><div class="lbl">universal · sonnet</div>'
-        f'<div class="val">{fmt3(uni_s)}</div><div class="delta">≥ naive in every bucket · 2 reps</div></div>',
-        f'<div class="tile card"><div class="lbl">policy spend, whole experiment</div>'
-        f'<div class="val">${total_cost:,.0f}</div><div class="delta">{total_attempts:,} gated attempts</div></div>',
-    ]
-    bmed = naive_h.get("medium") or {}
-    umed = uni_h.get("medium") or {}
-    if bmed.get("pass@1") and umed.get("pass@1"):
-        cb = (bmed.get("cost_usd_mean") or 0) / bmed["pass@1"]
-        cu = (umed.get("cost_usd_mean") or 0) / umed["pass@1"]
-        wb = (bmed.get("wall_s_mean") or 0) / bmed["pass@1"]
-        wu = (umed.get("wall_s_mean") or 0) / umed["pass@1"]
-        tiles.insert(2,
-            f'<div class="tile card"><div class="lbl">per SOLVED medium proof · haiku</div>'
-            f'<div class="val">${cb:.2f} → ${cu:.2f}</div>'
-            f'<div class="delta">wall {wb:.0f}s → {wu:.0f}s · naive → universal</div></div>')
-
     # ladder table: step, change, tool surface, verdict, outcome, numbers
     lrows = []
     for cfg, lab, chg, v, why in LADDER:
@@ -688,8 +668,6 @@ def build():
 <h1>AI-native Rocq tooling — final results</h1>
 <div class="sub">experiment complete (Jun 30 – Jul 7, 2026) · generated {updated} ·
 full analysis: docs/REPORT.md · per-decision rationale: docs/DESIGN.md · repo README for install &amp; try</div>
-
-<div class="tiles">{''.join(tiles)}</div>
 
 <h2>The three objectives, across three policies</h2>
 <p class="caption">Naive compiler baseline → rocq-tools, mean over the three
