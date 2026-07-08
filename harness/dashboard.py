@@ -467,8 +467,6 @@ def build():
         f'<div class="val">{fmt3(uni_h)}</div><div class="delta">pass@1 e/m/h · 4 reps · dev60</div></div>',
         f'<div class="tile card"><div class="lbl">universal · sonnet</div>'
         f'<div class="val">{fmt3(uni_s)}</div><div class="delta">≥ naive in every bucket · 2 reps</div></div>',
-        f'<div class="tile card"><div class="lbl">held-out (miniF2F test, frozen config)</div>'
-        f'<div class="val">.52 / .13 / .04</div><div class="delta">single locked run · REPORT §7</div></div>',
         f'<div class="tile card"><div class="lbl">policy spend, whole experiment</div>'
         f'<div class="val">${total_cost:,.0f}</div><div class="delta">{total_attempts:,} gated attempts</div></div>',
     ]
@@ -642,6 +640,45 @@ def build():
                 + a24_chart(sgroups)
                 + f"<details open><summary>all three dimensions</summary>{sota_tbl}</details>")
 
+    # objective-delta grid: baseline -> rocq-tools per policy, mean over bins
+    fab_base = stats_for(runs, "baseline_fable_dev60")
+    fab_uni = stats_for(runs, "universal_fable_dev60")
+    def mean_metric(st, key, per_solve=False):
+        vals = []
+        for b in BUCKETS:
+            x = st.get(b) or {}
+            v = x.get(key)
+            if per_solve:
+                pp = x.get("pass@1")
+                v = (v / pp) if pp and v is not None else None
+            if v is not None:
+                vals.append(v)
+        return sum(vals) / len(vals) if vals else None
+    def delta_cell(base, tools, key, fmt, per_solve=False, up_good=False):
+        b = mean_metric(base, key, per_solve)
+        t = mean_metric(tools, key, per_solve)
+        if b is None or t is None:
+            return "<td class=num>–</td>"
+        pct = (t - b) / b * 100.0
+        good = (pct >= 0) if up_good else (pct <= 0)
+        cls = "up-good" if good else "down-bad"
+        arrow = "▲" if pct >= 0 else "▼"
+        return (f"<td class=num>{fmt(b)} → <b>{fmt(t)}</b> "
+                f'<span class="{cls}">{arrow}{abs(pct):.0f}%</span></td>')
+    drows = []
+    for label, base, tools in [("haiku (weak)", naive_h, uni_h),
+                               ("sonnet (strong)", naive_s, uni_s),
+                               ("fable (frontier)", fab_base, fab_uni)]:
+        drows.append(
+            f"<tr><td><b>{esc(label)}</b></td>"
+            + delta_cell(base, tools, "pass@1", lambda v: f"{v:.2f}", up_good=True)
+            + delta_cell(base, tools, "cost_usd_mean", lambda v: f"${v:.2f}", per_solve=True)
+            + delta_cell(base, tools, "wall_s_mean", lambda v: f"{v:.0f}s")
+            + "</tr>")
+    delta_grid = ("<table><tr><th>policy</th><th class=num>accuracy (mean pass@1)</th>"
+                  "<th class=num>cost ($/solved proof)</th><th class=num>time (s/attempt)</th></tr>"
+                  + "".join(drows) + "</table>")
+
     updated = time.strftime("%Y-%m-%d %H:%M:%S")
     return f"""<!doctype html>
 <html><head><meta charset="utf-8">
@@ -653,6 +690,13 @@ def build():
 full analysis: docs/REPORT.md · per-decision rationale: docs/DESIGN.md · repo README for install &amp; try</div>
 
 <div class="tiles">{''.join(tiles)}</div>
+
+<h2>The three objectives, across three policies</h2>
+<p class="caption">Naive compiler baseline → rocq-tools, mean over the three
+difficulty bins (dev set). Accuracy should rise; cost per solved proof and
+time per attempt should drop. The interface helps most where the model is
+weakest, and still pays at the frontier tier.</p>
+<div class="card">{delta_grid}</div>
 
 <h2>The ladder — one measured change at a time</h2>
 <p class="caption">Each step was A/B-tested against its predecessor on the same 60

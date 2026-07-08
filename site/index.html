@@ -61,10 +61,17 @@ svg .axis { stroke:var(--axis); stroke-width:1; }
 </style></head>
 <body class="viz-root">
 <h1>AI-native Rocq tooling — final results</h1>
-<div class="sub">experiment complete (Jun 30 – Jul 7, 2026) · generated 2026-07-08 13:52:41 ·
+<div class="sub">experiment complete (Jun 30 – Jul 7, 2026) · generated 2026-07-08 14:43:44 ·
 full analysis: docs/REPORT.md · per-decision rationale: docs/DESIGN.md · repo README for install &amp; try</div>
 
-<div class="tiles"><div class="tile card"><div class="lbl">recommended config (universal) · haiku</div><div class="val">0.66 / 0.57 / 0.40</div><div class="delta">pass@1 e/m/h · 4 reps · dev60</div></div><div class="tile card"><div class="lbl">universal · sonnet</div><div class="val">0.95 / 1.00 / 0.85</div><div class="delta">≥ naive in every bucket · 2 reps</div></div><div class="tile card"><div class="lbl">per SOLVED medium proof · haiku</div><div class="val">$0.44 → $0.16</div><div class="delta">wall 487s → 124s · naive → universal</div></div><div class="tile card"><div class="lbl">held-out (miniF2F test, frozen config)</div><div class="val">.52 / .13 / .04</div><div class="delta">single locked run · REPORT §7</div></div><div class="tile card"><div class="lbl">policy spend, whole experiment</div><div class="val">$479</div><div class="delta">5,868 gated attempts</div></div></div>
+<div class="tiles"><div class="tile card"><div class="lbl">recommended config (universal) · haiku</div><div class="val">0.66 / 0.57 / 0.40</div><div class="delta">pass@1 e/m/h · 4 reps · dev60</div></div><div class="tile card"><div class="lbl">universal · sonnet</div><div class="val">0.95 / 1.00 / 0.85</div><div class="delta">≥ naive in every bucket · 2 reps</div></div><div class="tile card"><div class="lbl">per SOLVED medium proof · haiku</div><div class="val">$0.44 → $0.16</div><div class="delta">wall 487s → 124s · naive → universal</div></div><div class="tile card"><div class="lbl">policy spend, whole experiment</div><div class="val">$479</div><div class="delta">5,868 gated attempts</div></div></div>
+
+<h2>The three objectives, across three policies</h2>
+<p class="caption">Naive compiler baseline → rocq-tools, mean over the three
+difficulty bins (dev set). Accuracy should rise; cost per solved proof and
+time per attempt should drop. The interface helps most where the model is
+weakest, and still pays at the frontier tier.</p>
+<div class="card"><table><tr><th>policy</th><th class=num>accuracy (mean pass@1)</th><th class=num>cost ($/solved proof)</th><th class=num>time (s/attempt)</th></tr><tr><td><b>haiku (weak)</b></td><td class=num>0.33 → <b>0.55</b> <span class="up-good">▲66%</span></td><td class=num>$0.37 → <b>$0.16</b> <span class="up-good">▼57%</span></td><td class=num>123s → <b>68s</b> <span class="up-good">▼45%</span></td></tr><tr><td><b>sonnet (strong)</b></td><td class=num>0.89 → <b>0.93</b> <span class="up-good">▲5%</span></td><td class=num>$0.14 → <b>$0.09</b> <span class="up-good">▼33%</span></td><td class=num>83s → <b>54s</b> <span class="up-good">▼35%</span></td></tr><tr><td><b>fable (frontier)</b></td><td class=num>0.97 → <b>0.98</b> <span class="up-good">▲2%</span></td><td class=num>$0.21 → <b>$0.20</b> <span class="up-good">▼3%</span></td><td class=num>54s → <b>49s</b> <span class="up-good">▼11%</span></td></tr></table></div>
 
 <h2>The ladder — one measured change at a time</h2>
 <p class="caption">Each step was A/B-tested against its predecessor on the same 60
