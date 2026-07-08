@@ -1,13 +1,27 @@
-(* Config "session": persistent in-process prover session.
+(* rocq-mcp: policy-neutral MCP server for driving the Rocq prover.
 
-   The theorem's file prefix ($ROCQ_TASK_FILE) is executed once at startup;
-   after that the agent drives the open proof with:
-     step{text}      — execute proof sentences incrementally; good sentences
-                       commit permanently, the first failing one reports a
-                       structured error; queries (Search/Check/...) also work
-     rollback{count} — undo the last N committed sentences (O(1) state swap)
-     state{}         — re-render current goals
-   candidate.v is written whenever the proof completes (harness contract). *)
+   Product surface (all default-on; ROCQ_ENABLE_TOOLS trims):
+     open{file, theorem?} — start/restart a session on a file; targets the
+                            named theorem (earlier broken proofs are Admitted
+                            so any hole is reachable) or the trailing goal
+     build{file}          — whole-file diagnosis: every broken proof reported
+                            in ONE call (admit-and-continue); pure, stateless
+     check{script}        — whole-proof submission with repair-from-failure
+     step{text}           — incremental commit-good-prefix execution
+     try{candidates}      — k speculative scripts, first success commits
+     auto_close{}         — finisher portfolio + mechanical hint synthesis
+     rollback{count} / state{} — O(1) undo / full re-render
+   Enrichments (default-on, =0 disables): error hints, did-you-mean,
+   synthesis; exemplars opt-in (=1). Safety: per-sentence checkpoint timeout
+   + allocation-triggered interruption (memprof-limits) so vm_compute /
+   native_compute divergence cannot freeze the session. Heavy import
+   prefixes are replay-memoized across opens.
+
+   Harness-only knobs (benchmark reproduction, not for product use):
+   ROCQ_TASK_FILE preset, ROCQ_ENV_V2 (Require refusal + gate alignment),
+   ROCQ_LOG_FILE/ROCQ_LOG_META (JSONL instrumentation), ROCQ_PORTFOLIO_EXTRA
+   (counterfactual replay), ROCQ_HINTS_SSR, ROCQ_RENDER. candidate.v is
+   written on completion (gate contract; harmless elsewhere). *)
 
 module M = Mcp_core.Mcp_server
 module D = Rocq_driver
@@ -1440,9 +1454,11 @@ let open_tool =
        Give `file` (absolute path). If the file ends with an unproven \
        statement, that statement becomes the goal; to prove a specific \
        theorem inside the file (e.g. one currently Admitted), also give \
-       `theorem` (its name) — the file is loaded UP TO that statement and \
-       everything after it is ignored. Project load paths (_CoqProject / \
-       dune) are discovered automatically from the file's location.";
+       `theorem` (its name) — the file is loaded UP TO that statement, \
+       everything after it is ignored, and any EARLIER broken proof is \
+       Admitted automatically so every theorem is reachable (fix holes in \
+       any order). Project load paths (_CoqProject / dune) are discovered \
+       automatically from the file's location.";
     input_schema =
       `Assoc
         [ ("type", `String "object");

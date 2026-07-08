@@ -167,6 +167,9 @@ gate, no network. Time budget hard cap: any single suite > 120 s is a bug.
 - **A13 prefix replay memoization (A30)**: opening a second file sharing
   leading sentences reuses cached snapshots — correct goal after divergence,
   proving works on a memoized base, both-ways re-open safe.
+- **A14 build tool (A33/A36)**: whole-file multi-error diagnosis (broken
+  lemma FIRST in the fixture — also the A36 regression: open must reach and
+  prove theorems past earlier broken proofs).
 - **B4-B6 contention/conflict pack**: double-focus refusal (ownership
   guard), concurrent mutating writes from parallel threads, trunk-mutation-
   under-branch (conclusion-digest renumbering exercised).

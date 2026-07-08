@@ -1,6 +1,6 @@
 # STATUS — AI-native Rocq tooling experiment · RUN COMPLETE
 
-_Final update: 2026-07-07 evening · run complete, product shipped, all verdicts collected_
+_Final update: 2026-07-08 · run complete; product hardened (multi-error build, hang safety, repair loop)_
 
 ## The run in one paragraph
 Starting from a deliberately-naive control, ten measured interface changes
@@ -88,6 +88,22 @@ overnight autonomous pipelines · every number's provenance in logs/ + git.
   lift at the weak policy — the structural-competence boundary confirmed a
   fourth time.
 - Test suite: 4 suites, all green (~100 checks incl. A13 memoization).
+
+## Jul 8 hardening (all measured/verified, suite 109 checks green)
+- **`build{file}`** (A33): whole-file diagnosis — every broken proof in one
+  call via admit-and-continue; pure/stateless.
+- **`open` reaches any hole** (A36): earlier broken proofs are Admitted
+  automatically — the build->open repair loop works for every hole.
+- **Hang safety** (A34/A35, user-reported class): memprof-limits
+  allocation-triggered interruption stops vm_compute/native_compute
+  divergence (verified on 2016^20214 mod 10: hang -> 5s structured TIMEOUT);
+  fork-probe kept as opt-in belt.
+- **mathcomp tactic bridge** (A32): zify/algebra-tactics conditional (real
+  closing power on boolean-reflection goals; no benchmark lift — structural
+  competence remains the weak-policy boundary; ships as depopts).
+- **Packaging sweep**: rocq-stdlib + memprof-limits hard deps; mathcomp
+  bridges as depopts; only rocq-mcp{,-daemon,-shim} installed (experiment
+  servers stay private); module header + tool descriptions refreshed.
 
 ## Needs your input
 _(empty — the run is complete)_

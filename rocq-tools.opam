@@ -8,12 +8,16 @@ authors: ["LLM4Rocq"]
 license: "MIT"
 homepage: "https://github.com/LLM4Rocq/rocq-tools"
 bug-reports: "https://github.com/LLM4Rocq/rocq-tools/issues"
+depopts: [
+  "coq-mathcomp-zify"
+  "coq-mathcomp-algebra-tactics"
+]
 depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.23"}
   "rocq-runtime" {>= "9.1" & < "9.2"}
   "memprof-limits"
-  "rocq-stdlib" {with-test}
+  "rocq-stdlib"
   "yojson"
   "odoc" {with-doc}
 ]
