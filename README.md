@@ -231,7 +231,8 @@ Datasets are expected as siblings of this repo (`rocq-workbook/`,
 `miniF2F-rocq/`); the policy endpoint is an authenticated `claude` CLI. The
 held-out split is guarded — code refuses to read `miniF2F-rocq/test` unless
 `FINAL_UNLOCK` + `ROCQ_FINAL_EVAL=1` are set; the single unlock (2026-07-03
-13:57:42) is logged in `logs/unlock.log` (see `configs/FROZEN.md`). Method in
+13:57:42) is recorded in `configs/FROZEN.md`; reproducing the held-out run
+requires deliberately recreating the `FINAL_UNLOCK` sentinel. Method in
 one line: one naive control; profile; one change at a time; keep only what
 improves per-bucket dev numbers (never pooled); gate every attempt; freeze; then
 one logged run on the held-out split.

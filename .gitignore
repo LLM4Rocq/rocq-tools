@@ -13,3 +13,7 @@ __pycache__/
 scratch/
 data/generated/
 .venv/
+.nra.cache
+.csdp.cache
+.vscode/
+FINAL_UNLOCK
