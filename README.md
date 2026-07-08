@@ -104,8 +104,9 @@ Cross-cutting enrichments (zero extra turns, all default-on; disable with `=0`):
   statement so the standard closers always exist. In a **mathcomp** file,
   additionally preloads `zify`/`algebra-tactics` — this mathcomp tactic
   bridge works only when the optional opam packages `coq-mathcomp-zify` and
-  `coq-mathcomp-algebra-tactics` are installed (`ROCQ_MC_TACTICS=0` to
-  disable), giving `by lia`/`by ring`/`by lra` real
+  `coq-mathcomp-algebra-tactics` are installed — still `coq-`named
+  upstream; these two satellites have not yet followed the mathcomp core
+  rename to `rocq-mathcomp-*` (`ROCQ_MC_TACTICS=0` to disable), giving `by lia`/`by ring`/`by lra` real
   power over boolean-reflection and ssralg goals. (`ROCQ_ENV_V2=1`
   additionally *refuses* mid-proof `Require` — a benchmark anti-gaming
   policy, off for normal use.)
