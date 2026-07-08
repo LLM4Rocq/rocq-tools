@@ -1427,6 +1427,11 @@ let with_exemplars (t : M.tool) =
         | _ -> r) }
 
 
+let stmt_re_of name =
+  Str.regexp
+    ("\\(Theorem\\|Lemma\\|Fact\\|Corollary\\|Proposition\\|Goal\\)[ \\t\\n]+"
+    ^ Str.quote name ^ "\\([^A-Za-z0-9_']\\|$\\)")
+
 let open_tool =
   {
     M.name = "open";
@@ -1460,17 +1465,82 @@ let open_tool =
           let text = really_input_string ic (in_channel_length ic) in
           close_in ic;
           let base0 = prover_base () in
-          let steps, stop =
-            D.exec_text ~cache:D.prefix_cache ~timeout_s:300. ~qed_timeout_s:300.
-              base0 text
+          (* A36 (repair-loop fix): when targeting a theorem that sits AFTER a
+             broken proof, admit-and-continue past earlier broken blocks
+             (build's mechanism) so every hole reported by `build` is
+             reachable. The reconstructed prefix replaces each broken proof
+             with `Admitted.`. *)
+          let qed_re =
+            Str.regexp "\\(Qed\\|Defined\\|Admitted\\|Abort\\)[ \\t]*\\."
           in
-          let stmt_re name =
-            Str.regexp
-              ("\\(Theorem\\|Lemma\\|Fact\\|Corollary\\|Proposition\\|Goal\\)[ \\t\\n]+"
-              ^ Str.quote name ^ "\\([^A-Za-z0-9_']\\|$\\)")
+          let steps, stop =
+            let rec go st src pieces iters =
+              let steps, stop =
+                D.exec_text ~cache:D.prefix_cache ~timeout_s:300.
+                  ~qed_timeout_s:300. st src
+              in
+              let all = pieces @ steps in
+              match stop with
+              | D.Error_at { loc; _ } when thm <> None && iters < 40 -> (
+                  let target = match thm with Some n -> n | None -> "" in
+                  let reached =
+                    List.exists
+                      (fun (x : D.exec_step) ->
+                        try
+                          ignore (Str.search_forward (stmt_re_of target) x.D.text 0);
+                          D.proof_open x.D.post
+                        with Not_found -> false)
+                      all
+                  in
+                  if reached then (all, D.Done)
+                  else
+                    let arr = Array.of_list steps in
+                    let stmt_idx = ref (-1) in
+                    Array.iteri
+                      (fun i (x : D.exec_step) ->
+                        try
+                          ignore (Str.search_forward lemma_re x.D.text 0);
+                          if D.proof_open x.D.post then stmt_idx := i
+                        with Not_found -> ())
+                      arr;
+                    if !stmt_idx < 0 then (all, stop)
+                    else
+                      let stmt = arr.(!stmt_idx) in
+                      let pre =
+                        if !stmt_idx = 0 then st else (arr.(!stmt_idx - 1)).D.post
+                      in
+                      match
+                        D.exec_text ~timeout_s:60. ~qed_timeout_s:60. pre
+                          (stmt.D.text ^ "\nAdmitted.")
+                      with
+                      | steps2, D.Done when steps2 <> [] ->
+                          let st' =
+                            (List.nth steps2 (List.length steps2 - 1)).D.post
+                          in
+                          let keep =
+                            List.filteri (fun i _ -> i < !stmt_idx) steps
+                          in
+                          let after_err =
+                            match loc with
+                            | Some (_, e) -> e
+                            | None -> String.length src
+                          in
+                          let rest = Str.string_after src after_err in
+                          let cont =
+                            try
+                              ignore (Str.search_forward qed_re rest 0);
+                              Str.string_after rest (Str.match_end ())
+                            with Not_found -> ""
+                          in
+                          if String.trim cont = "" then (all, stop)
+                          else go st' cont (pieces @ keep @ steps2) (iters + 1)
+                      | _ -> (all, stop))
+              | _ -> (all, stop)
+            in
+            go base0 text [] 0
           in
           let is_stmt_of name (x : D.exec_step) =
-            (try ignore (Str.search_forward (stmt_re name) x.D.text 0); true
+            (try ignore (Str.search_forward (stmt_re_of name) x.D.text 0); true
              with Not_found -> false)
             && D.proof_open x.D.post
           in

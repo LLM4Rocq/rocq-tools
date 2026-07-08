@@ -417,3 +417,13 @@ summary state — the same state-consistency posture coq-lsp ships). The A34
 fork-probe remains as an opt-in belt (ROCQ_FORK_PROBE=1) for
 zero-state-risk contexts. Suite green (57/35/10/7); small vm_compute
 success path verified.
+
+## A36 — open reaches targets past broken proofs (Jul 8, found by the A14 test agent)
+The build->open repair loop was broken for every hole after the first:
+`open{theorem:X}` stopped at the first failing proof and could never reach
+X. Fix: when targeting a theorem, open now admits-and-continues past
+earlier broken blocks (build's mechanism; the reconstructed prefix replaces
+each broken proof with `Admitted.`), so every hole `build` reports is
+directly openable and provable. Verified: h1 broken FIRST, open h2 -> proved,
+open main -> reached. The A14 fixture was restored to broken-first order as
+the regression test (109 checks green).

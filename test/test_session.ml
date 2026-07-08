@@ -394,10 +394,12 @@ let a14 () =
   let wd = tmpdir "sessA14" in
   let file = Filename.concat wd "dev.v" in
   write_file file
-    "Lemma b14_h2 : forall n : nat, (n + 0) + 0 = n.\n\
-     Proof. intros n. now rewrite <- !plus_n_O. Qed.\n\n\
-     Lemma b14_h1 : forall n : nat, n + 0 = n.\n\
+    (* b14_h1 (broken) deliberately FIRST: opening b14_h2 past it is the
+       A36 regression — open admits earlier broken blocks to reach targets *)
+    "Lemma b14_h1 : forall n : nat, n + 0 = n.\n\
      Proof. reflexivity. Qed.\n\n\
+     Lemma b14_h2 : forall n : nat, (n + 0) + 0 = n.\n\
+     Proof. intros n. now rewrite <- !plus_n_O. Qed.\n\n\
      Theorem b14_main : forall n : nat, (n + 0) + 0 = n + 0.\n\
      Proof. intros n. now rewrite b14_h2, <- plus_n_O. Qed.\n";
   let s =
