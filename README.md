@@ -1,5 +1,9 @@
 # rocq-tools — an AI-native tooling layer for the Rocq prover
 
+[![CI](https://img.shields.io/github/actions/workflow/status/LLM4Rocq/rocq-tools/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/LLM4Rocq/rocq-tools/actions/workflows/ci.yml)
+[![Dashboard](https://img.shields.io/badge/dashboard-results-2a78d6?style=for-the-badge)](https://llm4rocq.github.io/rocq-tools/)
+
+
 An **empirically-designed, policy-neutral MCP tool layer** that lets an LLM
 agent drive the Rocq (Coq) prover — *and* the controlled experiment that
 produced it. Starting from a deliberately-naive control (one tool = a full

@@ -306,6 +306,48 @@ def a24_chart(groups):
     return "".join(parts)
 
 
+def metric_bars(groups, fmt, width=700):
+    """Grouped horizontal bars for an arbitrary-scale metric.
+    groups: [(group label, [(series label, color, {bucket: v}), ...])]"""
+    vmax = 0.0
+    for _, series in groups:
+        for _, _, vals in series:
+            for v in vals.values():
+                if v is not None:
+                    vmax = max(vmax, v)
+    if vmax == 0:
+        return ""
+    bar_h, gap = 14, 3
+    series_n = max(len(sr) for _, sr in groups)
+    height = sum(len(BUCKETS) * (series_n * (bar_h + gap) + 8) + 26 for _ in groups) + 8
+    plot_x, plot_w = 170, width - 170 - 70
+    parts = [f'<svg viewBox="0 0 {width} {height}" width="{width}" role="img" '
+             f'aria-label="metric comparison per policy and bucket">']
+    y = 6
+    for glabel, series in groups:
+        parts.append(f'<text x="10" y="{y + 12}" class="vlab">{esc(glabel)}</text>')
+        y += 22
+        for b in BUCKETS:
+            parts.append(f'<text x="{plot_x - 8}" y="{y + bar_h * series_n / 2 + 5}" '
+                         f'text-anchor="end" class="tick">{b}</text>')
+            for slabel, col, vals in series:
+                v = vals.get(b)
+                if v is None:
+                    y += bar_h + gap
+                    continue
+                w = v / vmax * plot_w
+                parts.append(f'<rect x="{plot_x}" y="{y}" width="{w:.1f}" height="{bar_h}" '
+                             f'rx="3" fill="{col}"><title>{esc(glabel)} · {esc(slabel)} · '
+                             f'{b}: {fmt(v)}</title></rect>')
+                parts.append(f'<text class="tick" x="{plot_x + w + 6:.1f}" y="{y + bar_h - 3}">'
+                             f'{fmt(v)}</text>')
+                y += bar_h + gap
+            y += 8
+        y += 4
+    parts.append("</svg>")
+    return "".join(parts)
+
+
 # ---------- chart: scalability ----------
 
 def load_sweeps():
@@ -509,9 +551,32 @@ def build():
                    + a24row("naive @ haiku", naive_h) + a24row("universal @ haiku", uni_h)
                    + a24row("naive @ sonnet", naive_s) + a24row("universal @ sonnet", uni_s)
                    + "</table></details>")
+        def cps_vals(st):
+            out = {}
+            for b in BUCKETS:
+                x = st.get(b) or {}
+                pp, c = x.get("pass@1"), x.get("cost_usd_mean")
+                out[b] = (c / pp) if pp and c is not None else None
+            return out
+        def wall_vals(st):
+            return {b: (st.get(b) or {}).get("wall_s_mean") for b in BUCKETS}
+        mgroups = lambda f: [
+            ("claude-haiku-4-5",
+             [("naive", "var(--c-baseline)", f(naive_h)),
+              ("universal", "var(--c-winner)", f(uni_h))]),
+            ("claude-sonnet-5",
+             [("naive", "var(--c-baseline)", f(naive_s)),
+              ("universal", "var(--c-winner)", f(uni_s))]),
+        ]
         a24 = (legend_html([("naive whole-file interface", "var(--c-baseline)"),
                             ("universal (recommended)", "var(--c-winner)")])
-               + a24_chart(groups) + a24_tbl)
+               + '<p class="caption">accuracy — pass@1</p>'
+               + a24_chart(groups)
+               + '<p class="caption">cost — expected $ per solved proof (failures included)</p>'
+               + metric_bars(mgroups(cps_vals), lambda v: f"${v:.2f}")
+               + '<p class="caption">latency — mean wall-clock seconds per attempt</p>'
+               + metric_bars(mgroups(wall_vals), lambda v: f"{v:.0f}s")
+               + a24_tbl)
 
     # annex table: everything measured that is not on the haiku ladder
     annex = []
