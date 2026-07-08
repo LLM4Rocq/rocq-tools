@@ -16,5 +16,6 @@
   dune
   (rocq-runtime (and (>= 9.1) (< 9.2)))
   memprof-limits
-  (rocq-stdlib :with-test)
-  yojson))
+  rocq-stdlib
+  yojson)
+ (depopts coq-mathcomp-zify coq-mathcomp-algebra-tactics))
